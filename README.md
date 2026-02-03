@@ -31,5 +31,3 @@ Bilimsel ve hobi amaçlı herkes için, USGS ve AFAD kaynaklı güncel ve geçmi
 - Arayüze yeni filtreler, harita stilleri veya animasyonlar ekleyin.
 - PowerBI veya diğer BI araçlarına veri sunmak için backend'i kullanabilirsiniz.
 
-MIT Lisansı ile açık kaynak.  
-Katkıda bulunmak için pull request gönderebilirsiniz!
