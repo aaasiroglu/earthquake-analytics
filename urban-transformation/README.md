@@ -190,20 +190,60 @@ olarak planlanmalıdır.
 
 ## Yol Haritası (sonraki aşamalar)
 
-1. ~~Gerçek kadastro/imar verisi entegrasyonu~~ → temel ingestion iskeleti
-   (`/data/import`, `/data/sample`) **ve** 3DCityDB/PostGIS tabanlı pilot
-   bölge entegrasyonu (`/citydb/buildings`, `/citydb/context`,
-   `/citydb/parcels`) eklendi; pilot CityGML/SHP ile uçtan uca doğrulama
-   ve gerekirse SQL sorgularının/`ALIASES` eşlemesinin güncellenmesi
-   bekliyor (bkz. "3DCityDB Pilot Kurulumu").
-2. Pilot doğrulandıktan sonra: büyük dosyalar için performans (tiling),
-   3D Tiles/glTF dışa aktarımı ile gerçek LoD2 bina mesh'inin (sadece
-   ayak izi değil, çatı/cephe) MapLibre yerine CesiumJS veya
-   deck.gl Tile3DLayer ile gösterilmesi, ve doğrudan İBB açık veri
-   servislerinden (WFS/WMS) otomatik çekim.
-3. Birden fazla parsel/bina için optimizasyon (en uygun kat sayısı/kâr
-   dengesi önerisi).
-4. Gerçek generative AI tabanlı 3B bina/mimari model üretimi.
-5. Deprem riski verisiyle ilişkilendirme (bu repodaki deprem
-   dashboard'u ile entegrasyon — örn. risk skoruna göre dönüşüm önceliği).
+Projenin nihai vizyonu, paydaşlar (müteahhit, mühendis, mimar, emlakçı,
+vatandaş/site yönetimi) arasındaki fizibilite ve mutabakat sürecini
+ulusal ölçekte otomatikleştiren bir platformdur — tam şartname için
+[`docs/VISION.md`](docs/VISION.md). Bu kod tabanı şu anda bu vizyonun
+küçük bir alt kümesini gerçekleştiriyor; aşağıdaki fazlama, vizyondaki
+maddelerin **gerçekçi inşa edilebilirliğine** göre yapılmıştır.
+
+### Faz 0 — Tamamlanan MVP
+- TAKS/KAKS, kat sayısı, bağımsız bölüm, hak sahibi/müteahhit payı,
+  maliyet/kâr hesaplama motoru (`/calculate`).
+- MapLibre tabanlı 3B harita: parsel/bina ayak izi çizme, parsel
+  birleştirme, önerilen binanın parametrik 3B kütle gösterimi.
+- MAKS/İBB GML/SHP içe aktarma iskeleti (`/data/import`, alias eşleme).
+- 3DCityDB/PostGIS pilot entegrasyonu (`/citydb/buildings`,
+  `/citydb/context`, `/citydb/parcels`) — pilot veriyle doğrulanmayı
+  bekliyor.
+
+### Faz 1 — Mevcut altyapı üzerine doğrudan inşa edilebilir
+Bunlar, ek dış API/kurumsal erişim gerektirmeden, mevcut hesaplama
+motoru ve 3DCityDB pilotu üzerine kodlanabilir:
+1. **"En Kârlı Bölge" tarama + ısı haritası** (vizyon §3): `/calculate`
+   mantığının pilot bölgedeki tüm parsellere toplu uygulanması, sonuçların
+   Kârlılık Endeksi'ne (K) göre MapLibre heatmap katmanında gösterilmesi.
+2. **Viewshed / Sky View Factor 3D analizi** (vizyon §1.C): gerçek ışın
+   atma (ray casting) gerektirir; MapLibre'de yapılamaz, CesiumJS/3D
+   Tiles tabanlı bir "Mühendislik ve Analiz Katmanı" (vizyon §5) eklenmesi
+   gerekir — 3DCityDB binalarıyla beslenebilir.
+3. **GWR (coğrafi ağırlıklı regresyon) fiyat tahmin iskeleti** (vizyon §1.B):
+   `mgwr` ile algoritmik iskelet kurulabilir, ancak gerçek satış verisi
+   olmadan eğitilemez/doğrulanamaz — örnek/sahte veriyle başlanabilir.
+4. Gerçek LoD2 bina mesh'inin (sadece ayak izi değil, çatı/cephe) 3D
+   Tiles/glTF olarak CesiumJS veya deck.gl Tile3DLayer ile gösterilmesi
+   (MapLibre'nin yerini/ekini alarak).
+5. Deprem riski verisiyle ilişkilendirme — bu repodaki deprem
+   dashboard'u ile entegrasyon (örn. risk skoruna göre dönüşüm önceliği).
 6. Kullanıcı hesapları, proje kaydetme/paylaşma.
+
+### Faz 2 — Dış kurumsal veri/erişim gerektirir (şu an sadece tasarım)
+Bunlar gerçek kod yazılarak "şimdi" çözülemez; ilgili kurumla veri
+erişimi/API anlaşması olmadan iskelet ötesine geçilemez:
+- **TAKBİS/LADM (ISO 19152) 3D kadastro modellemesi** (vizyon §1.A) —
+  TAKBİS verisine resmi erişim gerekir.
+- **HKMO/İMO canlı birim maliyet API'si ve TMMOB "dijital kaşe"
+  sertifikasyonu** (vizyon §4.A) — meslek odalarıyla kurumsal entegrasyon
+  ve yetkilendirme gerekir.
+- **e-Devlet tabanlı Dijital Uzlaşma Portalı** (vizyon §4.C) — e-Devlet
+  kapısı entegrasyonu resmi yetki/protokol gerektirir.
+- **BIM/IFC ve LiDAR nokta bulutu entegrasyonu (Virtual Singapore
+  benzeri dijital ikiz)** (vizyon §1, §5) — pilot bölge için bu veri
+  setlerinin temin edilmesi gerekir.
+
+### Faz 3 — İş/hukuk modeli (yazılım görevi değil)
+Vizyon §6'daki SaaS aboneliği, rapor başına ücretlendirme ve komisyon
+modeli; ürün/iş geliştirme ve hukuki danışmanlık gerektiren ticari
+kararlardır — bu README'nin veya kod tabanının kapsamı dışındadır,
+ancak ürün olgunlaştığında bir faturalama/yetkilendirme katmanı
+(örn. Stripe + rol bazlı erişim) olarak teknik karşılığı eklenebilir.
