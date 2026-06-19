@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<title>Kentsel Dönüşüm Karar Destek Aracı</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://unpkg.com/maplibre-gl@3/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/maplibre-gl@3/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; font-family: system-ui, Arial, sans-serif; }
+  #app { display: flex; height: 100%; }
+  #map { flex: 1; }
+  #sidebar {
+    width: 380px; overflow-y: auto; background: #14161a; color: #eaeaea;
+    padding: 16px; box-sizing: border-box;
+  }
+  #sidebar h1 { font-size: 18px; margin: 0 0 4px; }
+  #sidebar h2 { font-size: 14px; margin: 18px 0 6px; color: #9fd3ff; }
+  #sidebar p.hint { font-size: 12px; color: #9aa0a6; margin: 2px 0 8px; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  button {
+    background: #2b6cb0; color: white; border: none; border-radius: 6px;
+    padding: 6px 10px; font-size: 12px; cursor: pointer;
+  }
+  button.secondary { background: #3a3f47; }
+  button.active { background: #2f855a; }
+  button:hover { opacity: 0.9; }
+  label { display: block; font-size: 12px; margin-top: 6px; color: #cbd5e0; }
+  input { width: 100%; box-sizing: border-box; padding: 5px 6px; border-radius: 4px; border: 1px solid #444; background: #1e2127; color: #eee; font-size: 13px; }
+  #results { background: #1e2127; border-radius: 8px; padding: 10px; margin-top: 12px; font-size: 13px; }
+  #results .line { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid #2a2e35; }
+  #results .line b { color: #9fd3ff; }
+  #notes { font-size: 11px; color: #f2c14e; margin-top: 8px; }
+  #status { font-size: 12px; color: #9aa0a6; min-height: 16px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <h1>Kentsel Dönüşüm Karar Destek Aracı</h1>
+    <p class="hint">Parselleri ve mevcut bina ayak izlerini haritada çizin, birden çok parseli birleştirin, hedef imar değerlerini girin ve önerilen yeni binayı 3B olarak görün.</p>
+
+    <h2>1) Çizim</h2>
+    <div class="row">
+      <button id="btn-parcel">Parsel Çiz</button>
+      <button id="btn-footprint">Bina Ayak İzi Çiz</button>
+      <button id="btn-finish" class="secondary">Şekli Bitir</button>
+      <button id="btn-clear" class="secondary">Tümünü Temizle</button>
+    </div>
+    <p class="hint" id="status"></p>
+    <div class="row">
+      <button id="btn-union-parcels" class="secondary">Parselleri Birleştir</button>
+    </div>
+
+    <h2>2) Mevcut Durum</h2>
+    <label>Parsel alanı (m²) — çizimden otomatik</label>
+    <input id="parcel_area_m2" type="number" step="0.01" />
+    <label>Mevcut bina ayak izi toplamı (m²) — çizimden otomatik</label>
+    <input id="existing_footprint_area_m2" type="number" step="0.01" />
+    <label>Mevcut kat sayısı</label>
+    <input id="existing_floor_count" type="number" value="4" />
+    <label>Mevcut bağımsız bölüm sayısı</label>
+    <input id="existing_unit_count" type="number" value="16" />
+    <label>Hak sahibi sayısı</label>
+    <input id="owner_count" type="number" value="16" />
+
+    <h2>3) Hedef İmar Değerleri</h2>
+    <label>Hedef TAKS (0-1 arası, örn. 0.30)</label>
+    <input id="target_taks" type="number" step="0.01" value="0.30" />
+    <label>Hedef KAKS / Emsal (örn. 2.20)</label>
+    <input id="target_kaks" type="number" step="0.01" value="2.20" />
+    <label>Hedef ortalama bağımsız bölüm büyüklüğü (m²)</label>
+    <input id="avg_unit_size_m2" type="number" step="1" value="110" />
+    <label>Kat yüksekliği (m)</label>
+    <input id="floor_height_m" type="number" step="0.1" value="3.0" />
+
+    <h2>4) Maliyet / Satış Varsayımları</h2>
+    <label>İnşaat maliyeti (TL/m²)</label>
+    <input id="construction_cost_per_m2" type="number" step="100" value="25000" />
+    <label>Satış fiyatı (TL/m²)</label>
+    <input id="sale_price_per_m2" type="number" step="100" value="60000" />
+
+    <h2>5) API</h2>
+    <label>Backend API adresi</label>
+    <input id="api_url" type="text" value="http://localhost:8000" />
+
+    <div class="row" style="margin-top: 14px;">
+      <button id="btn-calculate">Hesapla ve 3B Modeli Göster</button>
+    </div>
+
+    <div id="results" style="display:none;"></div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+const map = new maplibregl.Map({
+  container: 'map',
+  style: 'https://tiles.openfreemap.org/styles/liberty',
+  center: [28.9784, 41.0082],
+  zoom: 16,
+  pitch: 50,
+  bearing: -10,
+  antialias: true
+});
+map.addControl(new maplibregl.NavigationControl());
+
+let mode = null; // 'parcel' | 'footprint'
+let currentPoints = [];
+let parcels = [];     // array of GeoJSON Polygon features
+let footprints = [];  // array of GeoJSON Polygon features
+
+const statusEl = document.getElementById('status');
+function setStatus(msg) { statusEl.textContent = msg; }
+
+function emptyFC() { return { type: 'FeatureCollection', features: [] }; }
+
+function ring(points) {
+  if (points.length < 3) return null;
+  const closed = [...points, points[0]];
+  return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [closed] } };
+}
+
+map.on('load', () => {
+  map.addSource('draft', { type: 'geojson', data: emptyFC() });
+  map.addSource('draft-points', { type: 'geojson', data: emptyFC() });
+  map.addSource('parcels', { type: 'geojson', data: emptyFC() });
+  map.addSource('footprints', { type: 'geojson', data: emptyFC() });
+  map.addSource('proposed', { type: 'geojson', data: emptyFC() });
+
+  map.addLayer({ id: 'draft-fill', type: 'fill', source: 'draft', paint: { 'fill-color': '#f2c14e', 'fill-opacity': 0.25 } });
+  map.addLayer({ id: 'draft-line', type: 'line', source: 'draft', paint: { 'line-color': '#f2c14e', 'line-width': 2 } });
+  map.addLayer({ id: 'draft-points', type: 'circle', source: 'draft-points', paint: { 'circle-color': '#f2c14e', 'circle-radius': 4 } });
+
+  map.addLayer({ id: 'parcels-fill', type: 'fill', source: 'parcels', paint: { 'fill-color': '#2b6cb0', 'fill-opacity': 0.18 } });
+  map.addLayer({ id: 'parcels-line', type: 'line', source: 'parcels', paint: { 'line-color': '#2b6cb0', 'line-width': 2 } });
+
+  map.addLayer({ id: 'footprints-fill', type: 'fill', source: 'footprints', paint: { 'fill-color': '#e07a3f', 'fill-opacity': 0.35 } });
+  map.addLayer({ id: 'footprints-line', type: 'line', source: 'footprints', paint: { 'line-color': '#e07a3f', 'line-width': 2 } });
+
+  map.addLayer({
+    id: 'proposed-extrusion', type: 'fill-extrusion', source: 'proposed',
+    paint: {
+      'fill-extrusion-color': '#2f855a',
+      'fill-extrusion-opacity': 0.75,
+      'fill-extrusion-height': ['get', 'height'],
+      'fill-extrusion-base': 0
+    }
+  });
+});
+
+function redrawDraft() {
+  const features = [];
+  const f = ring(currentPoints);
+  if (f) features.push(f);
+  map.getSource('draft').setData({ type: 'FeatureCollection', features });
+  map.getSource('draft-points').setData({
+    type: 'FeatureCollection',
+    features: currentPoints.map(p => ({ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: {} }))
+  });
+}
+
+map.on('click', (e) => {
+  if (!mode) return;
+  currentPoints.push([e.lngLat.lng, e.lngLat.lat]);
+  redrawDraft();
+  setStatus(`${mode === 'parcel' ? 'Parsel' : 'Bina ayak izi'} çiziliyor: ${currentPoints.length} nokta. Bitirmek için "Şekli Bitir"e basın.`);
+});
+
+document.getElementById('btn-parcel').onclick = () => {
+  mode = 'parcel'; currentPoints = []; redrawDraft();
+  toggleActive('btn-parcel'); setStatus('Parsel çizim modu: haritada noktalara tıklayın.');
+};
+document.getElementById('btn-footprint').onclick = () => {
+  mode = 'footprint'; currentPoints = []; redrawDraft();
+  toggleActive('btn-footprint'); setStatus('Bina ayak izi çizim modu: haritada noktalara tıklayın.');
+};
+function toggleActive(id) {
+  ['btn-parcel', 'btn-footprint'].forEach(b => document.getElementById(b).classList.toggle('active', b === id));
+}
+
+document.getElementById('btn-finish').onclick = () => {
+  const f = ring(currentPoints);
+  if (!f) { setStatus('En az 3 nokta gerekli.'); return; }
+  if (mode === 'parcel') parcels.push(f);
+  else if (mode === 'footprint') footprints.push(f);
+  currentPoints = []; redrawDraft();
+  renderPolygons();
+  recomputeAreas();
+  setStatus(`${mode === 'parcel' ? 'Parsel' : 'Bina ayak izi'} eklendi. Toplam: ${mode === 'parcel' ? parcels.length : footprints.length}`);
+};
+
+document.getElementById('btn-clear').onclick = () => {
+  mode = null; currentPoints = []; parcels = []; footprints = [];
+  redrawDraft(); renderPolygons();
+  map.getSource('proposed').setData(emptyFC());
+  document.getElementById('parcel_area_m2').value = '';
+  document.getElementById('existing_footprint_area_m2').value = '';
+  document.getElementById('results').style.display = 'none';
+  toggleActive(null);
+  setStatus('Temizlendi.');
+};
+
+document.getElementById('btn-union-parcels').onclick = () => {
+  if (parcels.length < 2) { setStatus('Birleştirmek için en az 2 parsel çizin.'); return; }
+  let merged = parcels[0];
+  for (let i = 1; i < parcels.length; i++) {
+    merged = turf.union(merged, parcels[i]);
+  }
+  parcels = [merged];
+  renderPolygons();
+  recomputeAreas();
+  setStatus(`${parcels.length} parsel birleştirildi.`);
+};
+
+function renderPolygons() {
+  map.getSource('parcels').setData({ type: 'FeatureCollection', features: parcels });
+  map.getSource('footprints').setData({ type: 'FeatureCollection', features: footprints });
+}
+
+function recomputeAreas() {
+  const parcelArea = parcels.reduce((sum, p) => sum + turf.area(p), 0);
+  const footprintArea = footprints.reduce((sum, p) => sum + turf.area(p), 0);
+  if (parcelArea > 0) document.getElementById('parcel_area_m2').value = parcelArea.toFixed(2);
+  if (footprintArea > 0) document.getElementById('existing_footprint_area_m2').value = footprintArea.toFixed(2);
+}
+
+function num(id) { return parseFloat(document.getElementById(id).value); }
+function int(id) { return parseInt(document.getElementById(id).value, 10); }
+
+document.getElementById('btn-calculate').onclick = async () => {
+  const payload = {
+    parcel_area_m2: num('parcel_area_m2'),
+    existing_footprint_area_m2: num('existing_footprint_area_m2'),
+    existing_floor_count: int('existing_floor_count'),
+    existing_unit_count: int('existing_unit_count'),
+    owner_count: int('owner_count'),
+    target_taks: num('target_taks'),
+    target_kaks: num('target_kaks'),
+    avg_unit_size_m2: num('avg_unit_size_m2'),
+    floor_height_m: num('floor_height_m'),
+    construction_cost_per_m2: num('construction_cost_per_m2'),
+    sale_price_per_m2: num('sale_price_per_m2'),
+  };
+  if (!payload.parcel_area_m2) { setStatus('Önce bir parsel çizin (alan otomatik hesaplanır).'); return; }
+
+  const apiUrl = document.getElementById('api_url').value.replace(/\/$/, '');
+  setStatus('Hesaplanıyor...');
+  let result;
+  try {
+    const res = await fetch(`${apiUrl}/calculate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    result = await res.json();
+  } catch (err) {
+    setStatus('Hata: backend API\'ye ulaşılamadı. (' + err.message + ')');
+    return;
+  }
+  setStatus('Hesaplandı.');
+  showResults(result);
+  renderProposedBuilding(result);
+};
+
+function showResults(r) {
+  const el = document.getElementById('results');
+  el.style.display = 'block';
+  const lineFmt = (label, value) => `<div class="line"><span>${label}</span><b>${value}</b></div>`;
+  el.innerHTML =
+    lineFmt('Mevcut TAKS', r.existing_taks) +
+    lineFmt('Mevcut KAKS (emsal)', r.existing_kaks) +
+    lineFmt('Yeni bina ayak izi (m²)', r.new_footprint_area_m2) +
+    lineFmt('Toplam inşaat alanı (m²)', r.total_construction_area_m2) +
+    lineFmt('Önerilen kat sayısı', r.new_floor_count) +
+    lineFmt('Bina yüksekliği (m)', r.building_height_m) +
+    lineFmt('Tahmini toplam bağımsız bölüm', r.total_unit_count_estimate) +
+    lineFmt('Hak sahiplerine giden bağımsız bölüm', r.units_to_owners) +
+    lineFmt('Müteahhide kalan bağımsız bölüm', r.units_to_contractor) +
+    lineFmt('Hak sahibi başına alan (m²)', r.area_per_owner_m2) +
+    lineFmt('Müteahhit satılabilir alan (m²)', r.contractor_sellable_area_m2) +
+    lineFmt('Tahmini inşaat maliyeti (TL)', r.estimated_cost_tl.toLocaleString('tr-TR')) +
+    lineFmt('Tahmini satış geliri (TL)', r.estimated_revenue_tl.toLocaleString('tr-TR')) +
+    lineFmt('Tahmini kâr (TL)', r.estimated_profit_tl.toLocaleString('tr-TR')) +
+    `<div id="notes">${r.notes.map(n => '• ' + n).join('<br/>')}</div>`;
+}
+
+function renderProposedBuilding(r) {
+  const base = parcels[0] || footprints[0];
+  if (!base) return;
+  const currentArea = turf.area(base);
+  const factor = Math.sqrt(r.new_footprint_area_m2 / currentArea);
+  const scaled = turf.transformScale(base, factor);
+  scaled.properties = { height: r.building_height_m };
+  map.getSource('proposed').setData({ type: 'FeatureCollection', features: [scaled] });
+
+  const center = turf.centroid(scaled).geometry.coordinates;
+  map.flyTo({ center, zoom: 17, pitch: 55 });
+}
+</script>
+</body>
+</html>
