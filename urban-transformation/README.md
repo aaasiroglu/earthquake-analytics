@@ -126,11 +126,17 @@ Ayarlanmazsa `/citydb/*` endpoint'leri `501` döner, dosya yükleme
 
 Türkiye'de bu alanda zaten ticarileşmiş rakipler var: **Evveko**
 (mülk sahibini denetimden geçmiş müteahhitle eşleştiren, müteahhitten
-abonelik + proje bazlı %3-5 komisyon alan bir **reaktif** platform) ve
-**Kolayimar** (81 ilde TKGM/e-Plan canlı entegrasyonlu, ücretsiz **tek
+taahhüt maliyeti üzerinden **%2 komisyon** alan bir **reaktif** platform)
+ve **Kolayimar** (81 ilde TKGM/e-Plan canlı entegrasyonlu, ücretsiz **tek
 parsel** sorgu/yatırım analizi aracı). Bu, sektörde gerçek bir ödeme
 isteği olduğunu doğruluyor, ama her ikisi de "kullanıcı başvurana kadar
 bekleyen" ya da "bir parseli tek tek sorgulayan" araçlar.
+
+> Not: Evveko'nun süreci 5 adımdır (talep oluşturma → değerlendirme →
+> mimari etüt → fizibilite/planlama → teklif toplama), vetlenmiş ~59
+> müteahhit havuzuyla çalışır ve pilot olarak 7 İstanbul ilçesinde
+> (Bağcılar, Güngören, Bakırköy, Bahçelievler, Zeytinburnu, Esenler,
+> Sultangazi) yürütülmektedir.
 
 Bu proje, bu boşluğa odaklanır: **proaktif, şehir ölçekli Kârlılık
 Endeksi taraması** (`backend/scan.py`, `/scan` endpoint'i,
@@ -138,9 +144,12 @@ Endeksi taraması** (`backend/scan.py`, `/scan` endpoint'i,
 yüklü tüm parselleri otomatik tarayıp en kârlı olanları sıralaması — ve
 bunu besleyen gerçek 3D bina hacmi (3DCityDB) + bölgesel fiyat tahmin
 modeli (`backend/price_model.py`). Global tarafta Archistar/TestFit/
-Giraffe gibi olgun "AI feasibility + site selection" araçları var, ama
-Türk imar/kadastro mevzuatına ve kentsel dönüşümün "mevcut hak
-sahipliği + şerefiye paylaşımı" problemine değinen hiçbiri yok.
+Giraffe/Autodesk Forma/Atlasly gibi olgun "AI feasibility + site
+selection" araçları var (TestFit'in canlı pro forma + metraj otomasyonu
+kavramsal olarak `scan.py`/`calculations.py` ile örtüşüyor; Atlasly ise
+MCP — Model Context Protocol — üzerinden AI istemcilerine entegre
+oluyor), ama Türk imar/kadastro mevzuatına ve kentsel dönüşümün "mevcut
+hak sahipliği + şerefiye paylaşımı" problemine değinen hiçbiri yok.
 
 ## Bölgesel Fiyat Tahmini ve Kârlılık Taraması
 

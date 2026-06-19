@@ -7,6 +7,32 @@
 > entegrasyonu) gerçekleştirir. Hangi maddenin hangi aşamada ele
 > alınacağı için ana `README.md`'deki "Yol Haritası" bölümüne bakın.
 
+> ### Round 2 Mevzuat/Pazar Notları (kayıt amaçlı, henüz kod yazılmadı)
+> Kullanıcının paylaştığı detaylı bir mevzuat/pazar araştırması raporu
+> aşağıdaki somut gelişmeleri doğruladı. Bunlar şimdilik **sadece not
+> olarak kayıt altına alınmıştır** — gelecekteki bir Faz 1 round'unda
+> ayrı birer özellik olarak değerlendirilebilir, bu round'da herhangi
+> bir backend/frontend kodu yazılmamıştır:
+> - **6306 sayılı Kanun yönetmelik değişikliği (4 Şubat 2026):** Karar
+>   nisabı 2/3'ten **arsa payına göre salt çoğunluğa (%50+1)** düştü;
+>   "tespit yazısı" zorunluluğu, 15 günlük ilan/tebligat süreleri,
+>   anlaşmayan maliklerin payının rayiçten az olmamak üzere satılması
+>   (satılmazsa TOKİ'nin alması) ve müteahhidin 1 yıl içinde
+>   başlamaması/6 ay durdurması halinde maliklerin %50+1 ile tek
+>   taraflı fesih hakkı getirildi.
+> - **"Yarısı Bizden" devlet desteği:** Konut için 875.000 TL hibe +
+>   875.000 TL kredi (ek bağımsız bölüm için 1.750.000 TL kredi),
+>   işyeri için yarısı; 125.000 TL tek seferlik taşınma desteği VEYA
+>   aylık 8.000 TL × 18 ay kira yardımı (ikisinden biri); 10 yıl vade,
+>   ruhsattan 2 yıl sonra başlayan geri ödeme. Şart: ruhsat tarihi
+>   1 Nisan 2023 sonrası, yeni alan/bağımsız bölüm sayısı eskinin 1,5
+>   katını aşmamış. **Son sözleşme tarihi 31 Aralık 2026.**
+> - **TUCBS_BI v2.0 bina veri şeması:** Resmi öznitelik adları (cephe
+>   yönü, bulunduğu kat tipi, enerji sınıfı, asansör, deprem yer
+>   hareketi düzeyi, tesisat) mevcut; gerçek MAKS/TUCBS verisi
+>   geldiğinde `backend/data_ingestion.py`'daki `ALIASES` sözlüğüne
+>   eklenmesi planlanıyor (bkz. ilgili dosyadaki not).
+
 Bu döküman; kentsel dönüşüm ve afet odaklı kent planlamasında Müteahhit, Mühendis, Mimar, Emlakçı ve Vatandaş (Site Yönetimi) arasındaki finansal fizibilite ve sosyal mutabakat süreçlerini tamamen bilimsel, nesnel ve otomatik hale getiren ulusal ölçekli platformun mimarisini tanımlar.
 
 ---

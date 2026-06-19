@@ -8,6 +8,11 @@ için olası kaynak sütun adlarının bir listesi tutulur, gelen veri
 büyük/küçük harf ve alt çizgi farkından bağımsız olarak bu listeyle
 eşleştirilir. Gerçek MAKS şeması netleşince ALIASES sözlüğüne yeni
 adlar eklemek yeterlidir; eşleştirme mantığı değişmez.
+
+Not: Resmi TUCBS_BI v2.0 bina veri şemasının öznitelik adları (örn.
+cephe yönü, bulunduğu kat tipi, enerji sınıfı, asansör, deprem yer
+hareketi düzeyi, tesisat) henüz ALIASES'e eklenmedi; gerçek MAKS/TUCBS
+verisi temin edildiğinde eklenmelidir.
 """
 from __future__ import annotations
 
