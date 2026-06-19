@@ -18,6 +18,38 @@ Bu, earthquake-analytics deprem dashboard'undan bağımsız, ayrı bir araçtır
   ile 3B harita; [Turf.js](https://turfjs.org/) ile alan hesabı, parsel
   birleştirme (union) ve önerilen bina kütlesinin ölçeklenmesi.
 
+## MAKS / İBB Verisi İçe Aktarma
+
+Nihai hedef, parsel/bina/nüfus/bağımsız bölüm verisinin manuel çizim yerine
+**İBB'nin kendi GML ve MAKS (.shp) verilerinden** gelmesidir. Bu MVP'de
+bu akışın temel iskeleti kuruldu:
+
+- `backend/data_ingestion.py` — `.gml` veya `.zip` (tam shapefile seti:
+  `.shp`+`.dbf`+`.shx`+`.prj`) dosyasını `geopandas`/`fiona` ile okur,
+  WGS84'e (EPSG:4326) dönüştürür ve GeoJSON olarak döner.
+- **Alan adı eşleştirme (alias mapping):** MAKS/İBB katmanlarının gerçek
+  sütun adları henüz elimizde olmadığından, `ALIASES` sözlüğü olası
+  sütun adlarını (büyük/küçük harf ve alt çizgiden bağımsız) hedef
+  alanlara (`parcel_id`, `parcel_area_m2`, `floor_count`, `unit_count`,
+  `population`, ...) eşler. **Gerçek MAKS şeması elinize geçtiğinde**
+  yapılması gereken tek şey `ALIASES` içine gerçek sütun adlarını eklemek
+  — eşleştirme/normalize mantığının kendisi değişmez.
+- `POST /data/import` — dosya yükler, normalize edilmiş GeoJSON döner.
+- `GET /data/sample` — gerçek MAKS dosyası gelene kadar arayüzü test
+  etmek için 2 parsellik örnek (sahte) veri döner.
+- **Frontend:** "0) MAKS / Kadastro Verisi" panelinden dosya yükleyin
+  veya örnek veriyi açın; haritada beliren parsel/binalara tıklayıp
+  "Seçileni Parsel/Bina Ayak İzi Olarak Ekle" ile doğrudan hesaplama
+  akışına (parsel birleştirme dahil) dahil edebilirsiniz — manuel çizim
+  akışıyla aynı veri yapısını kullanır, ikisi birlikte de kullanılabilir.
+
+> Not: `geopandas`/`fiona` GDAL sistem kütüphanesine ihtiyaç duyar ve bu
+> ajan sandbox'ında internet erişimi olmadığı için kurulup gerçek bir
+> `.gml`/`.shp` dosyasıyla burada test edilemedi. Alan eşleştirme
+> (`normalize_attributes`) mantığı geopandas'sız bağımsız olarak test
+> edildi ve doğru çalışıyor; `load_vector_file`/`/data/import`'u gerçek
+> bir İBB dosyasıyla kendi ortamınızda doğrulamanız gerekir.
+
 ## Nasıl Kullanılır
 
 1. **Backend'i başlatın:**
@@ -86,10 +118,16 @@ olarak planlanmalıdır.
 
 ## Yol Haritası (sonraki aşamalar)
 
-1. Gerçek kadastro/imar verisi entegrasyonu (TKGM, belediye açık veri).
-2. Birden fazla parsel/bina için optimizasyon (en uygun kat sayısı/kâr
+1. ~~Gerçek kadastro/imar verisi entegrasyonu~~ → temel ingestion iskeleti
+   eklendi (`/data/import`, `/data/sample`); gerçek MAKS GML/SHP
+   dosyasıyla doğrulama ve `ALIASES` sözlüğünün gerçek şemaya göre
+   güncellenmesi bekliyor.
+2. Büyük dosyalar için performans (sunucu tarafında basitleştirme/
+   tiling) ve doğrudan İBB açık veri servislerinden (WFS/WMS) otomatik
+   çekim — dosya yüklemeye gerek kalmadan.
+3. Birden fazla parsel/bina için optimizasyon (en uygun kat sayısı/kâr
    dengesi önerisi).
-3. Gerçek generative AI tabanlı 3B bina/mimari model üretimi.
-4. Deprem riski verisiyle ilişkilendirme (bu repodaki deprem
+4. Gerçek generative AI tabanlı 3B bina/mimari model üretimi.
+5. Deprem riski verisiyle ilişkilendirme (bu repodaki deprem
    dashboard'u ile entegrasyon — örn. risk skoruna göre dönüşüm önceliği).
-5. Kullanıcı hesapları, proje kaydetme/paylaşma.
+6. Kullanıcı hesapları, proje kaydetme/paylaşma.

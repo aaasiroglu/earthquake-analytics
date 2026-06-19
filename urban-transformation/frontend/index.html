@@ -41,6 +41,19 @@
     <h1>Kentsel Dönüşüm Karar Destek Aracı</h1>
     <p class="hint">Parselleri ve mevcut bina ayak izlerini haritada çizin, birden çok parseli birleştirin, hedef imar değerlerini girin ve önerilen yeni binayı 3B olarak görün.</p>
 
+    <h2>0) MAKS / Kadastro Verisi (opsiyonel)</h2>
+    <p class="hint">İBB/MAKS kaynaklı .gml veya tam shapefile setini (.shp+.dbf+.shx, .zip olarak) içe aktarın; haritada görünen parsel/binalara tıklayıp seçerek hesaplama formuna aktarabilirsiniz. Henüz dosyanız yoksa örnek veriyle deneyebilirsiniz.</p>
+    <input id="import-file" type="file" accept=".gml,.zip" />
+    <div class="row" style="margin-top: 6px;">
+      <button id="btn-import" class="secondary">Dosyayı İçe Aktar</button>
+      <button id="btn-sample-data" class="secondary">Örnek Veri Yükle</button>
+    </div>
+    <div id="imported-info" class="hint"></div>
+    <div class="row">
+      <button id="btn-use-as-parcel" class="secondary">Seçileni Parsel Olarak Ekle</button>
+      <button id="btn-use-as-footprint" class="secondary">Seçileni Bina Ayak İzi Olarak Ekle</button>
+    </div>
+
     <h2>1) Çizim</h2>
     <div class="row">
       <button id="btn-parcel">Parsel Çiz</button>
@@ -110,6 +123,8 @@ let mode = null; // 'parcel' | 'footprint'
 let currentPoints = [];
 let parcels = [];     // array of GeoJSON Polygon features
 let footprints = [];  // array of GeoJSON Polygon features
+let importedFeatures = emptyFC();
+let selectedImportedFeature = null;
 
 const statusEl = document.getElementById('status');
 function setStatus(msg) { statusEl.textContent = msg; }
@@ -128,6 +143,8 @@ map.on('load', () => {
   map.addSource('parcels', { type: 'geojson', data: emptyFC() });
   map.addSource('footprints', { type: 'geojson', data: emptyFC() });
   map.addSource('proposed', { type: 'geojson', data: emptyFC() });
+  map.addSource('imported', { type: 'geojson', data: emptyFC() });
+  map.addSource('imported-selected', { type: 'geojson', data: emptyFC() });
 
   map.addLayer({ id: 'draft-fill', type: 'fill', source: 'draft', paint: { 'fill-color': '#f2c14e', 'fill-opacity': 0.25 } });
   map.addLayer({ id: 'draft-line', type: 'line', source: 'draft', paint: { 'line-color': '#f2c14e', 'line-width': 2 } });
@@ -138,6 +155,20 @@ map.on('load', () => {
 
   map.addLayer({ id: 'footprints-fill', type: 'fill', source: 'footprints', paint: { 'fill-color': '#e07a3f', 'fill-opacity': 0.35 } });
   map.addLayer({ id: 'footprints-line', type: 'line', source: 'footprints', paint: { 'line-color': '#e07a3f', 'line-width': 2 } });
+
+  map.addLayer({ id: 'imported-fill', type: 'fill', source: 'imported', paint: { 'fill-color': '#8e44ad', 'fill-opacity': 0.25 } });
+  map.addLayer({ id: 'imported-line', type: 'line', source: 'imported', paint: { 'line-color': '#8e44ad', 'line-width': 1.5 } });
+  map.addLayer({ id: 'imported-selected-line', type: 'line', source: 'imported-selected', paint: { 'line-color': '#ffffff', 'line-width': 3 } });
+
+  map.on('click', 'imported-fill', (e) => {
+    const f = e.features[0];
+    selectedImportedFeature = f;
+    map.getSource('imported-selected').setData({ type: 'FeatureCollection', features: [f] });
+    const p = f.properties;
+    document.getElementById('imported-info').innerHTML =
+      `Seçili: Parsel ${p.parcel_id || '-'} · ${p.district || ''} ${p.neighborhood || ''}<br/>` +
+      `Alan: ${p.parcel_area_m2 ?? '-'} m² · Kat: ${p.floor_count ?? '-'} · Bağ. Bölüm: ${p.unit_count ?? '-'} · Nüfus: ${p.population ?? '-'}`;
+  });
 
   map.addLayer({
     id: 'proposed-extrusion', type: 'fill-extrusion', source: 'proposed',
@@ -213,6 +244,71 @@ document.getElementById('btn-union-parcels').onclick = () => {
   recomputeAreas();
   setStatus(`${parcels.length} parsel birleştirildi.`);
 };
+
+function renderImported(geojson) {
+  importedFeatures = geojson;
+  map.getSource('imported').setData(geojson);
+  document.getElementById('imported-info').textContent =
+    `${geojson.features.length} kayıt yüklendi. Bir parsel/binaya tıklayarak seçin.`;
+}
+
+document.getElementById('btn-sample-data').onclick = async () => {
+  const apiUrl = document.getElementById('api_url').value.replace(/\/$/, '');
+  setStatus('Örnek veri yükleniyor...');
+  try {
+    const res = await fetch(`${apiUrl}/data/sample`);
+    if (!res.ok) throw new Error(await res.text());
+    renderImported(await res.json());
+    setStatus('Örnek veri yüklendi.');
+  } catch (err) {
+    setStatus('Hata: ' + err.message);
+  }
+};
+
+document.getElementById('btn-import').onclick = async () => {
+  const fileInput = document.getElementById('import-file');
+  if (!fileInput.files.length) { setStatus('Önce bir .gml veya .zip dosyası seçin.'); return; }
+  const apiUrl = document.getElementById('api_url').value.replace(/\/$/, '');
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  setStatus('İçe aktarılıyor...');
+  try {
+    const res = await fetch(`${apiUrl}/data/import`, { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(await res.text());
+    renderImported(await res.json());
+    setStatus('Dosya içe aktarıldı.');
+  } catch (err) {
+    setStatus('Hata: ' + err.message);
+  }
+};
+
+document.getElementById('btn-use-as-parcel').onclick = () => {
+  if (!selectedImportedFeature) { setStatus('Önce haritada bir parsel/bina seçin.'); return; }
+  const f = { type: 'Feature', properties: {}, geometry: selectedImportedFeature.geometry };
+  parcels.push(f);
+  renderPolygons();
+  recomputeAreas();
+  applyImportedAttributes(selectedImportedFeature.properties);
+  setStatus('Seçili kayıt parsel olarak eklendi.');
+};
+
+document.getElementById('btn-use-as-footprint').onclick = () => {
+  if (!selectedImportedFeature) { setStatus('Önce haritada bir parsel/bina seçin.'); return; }
+  const f = { type: 'Feature', properties: {}, geometry: selectedImportedFeature.geometry };
+  footprints.push(f);
+  renderPolygons();
+  recomputeAreas();
+  applyImportedAttributes(selectedImportedFeature.properties);
+  setStatus('Seçili kayıt bina ayak izi olarak eklendi.');
+};
+
+function applyImportedAttributes(p) {
+  if (p.floor_count != null) document.getElementById('existing_floor_count').value = p.floor_count;
+  if (p.unit_count != null) {
+    document.getElementById('existing_unit_count').value = p.unit_count;
+    document.getElementById('owner_count').value = p.unit_count;
+  }
+}
 
 function renderPolygons() {
   map.getSource('parcels').setData({ type: 'FeatureCollection', features: parcels });
