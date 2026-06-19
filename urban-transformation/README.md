@@ -122,6 +122,57 @@ Ayarlanmazsa `/citydb/*` endpoint'leri `501` döner, dosya yükleme
   parselleri, `data_ingestion.py`'daki aynı alias-eşleştirme mantığıyla
   normalize edip döner.
 
+## Pazar Konumlandırması
+
+Türkiye'de bu alanda zaten ticarileşmiş rakipler var: **Evveko**
+(mülk sahibini denetimden geçmiş müteahhitle eşleştiren, müteahhitten
+abonelik + proje bazlı %3-5 komisyon alan bir **reaktif** platform) ve
+**Kolayimar** (81 ilde TKGM/e-Plan canlı entegrasyonlu, ücretsiz **tek
+parsel** sorgu/yatırım analizi aracı). Bu, sektörde gerçek bir ödeme
+isteği olduğunu doğruluyor, ama her ikisi de "kullanıcı başvurana kadar
+bekleyen" ya da "bir parseli tek tek sorgulayan" araçlar.
+
+Bu proje, bu boşluğa odaklanır: **proaktif, şehir ölçekli Kârlılık
+Endeksi taraması** (`backend/scan.py`, `/scan` endpoint'i,
+"6) Kârlılık Taraması" frontend paneli) — müteahhidin başvuru beklemeden
+yüklü tüm parselleri otomatik tarayıp en kârlı olanları sıralaması — ve
+bunu besleyen gerçek 3D bina hacmi (3DCityDB) + bölgesel fiyat tahmin
+modeli (`backend/price_model.py`). Global tarafta Archistar/TestFit/
+Giraffe gibi olgun "AI feasibility + site selection" araçları var, ama
+Türk imar/kadastro mevzuatına ve kentsel dönüşümün "mevcut hak
+sahipliği + şerefiye paylaşımı" problemine değinen hiçbiri yok.
+
+## Bölgesel Fiyat Tahmini ve Kârlılık Taraması
+
+- `backend/price_model.py` — "GWR-lite": gerçek çok değişkenli GWR
+  (`mgwr` + gerçek satış verisi) yerine, dış bağımlılık gerektirmeyen,
+  coğrafi mesafeye göre Gauss çekirdek ağırlıklı yerel ortalama
+  (Nadaraya–Watson tipi kernel regresyon) ile bölgesel m² satış fiyatı
+  tahmini yapar. `synthetic_sales()` ürettiği veri **tamamen SENTETİKTİR**
+  — sadece demo/test amaçlıdır, gerçek değerleme için kullanılamaz.
+  Gerçek satış verisi/`mgwr` temin edilince bu modülün dış API'si
+  (`predict()` girdi/çıktısı) aynı kalarak çok değişkenli GWR'a
+  yükseltilebilir.
+- `backend/scan.py` — `calculations.calculate()`'i, fiyat tahminini her
+  parsel için tekrar tekrar çalıştırarak bir parsel listesini Kârlılık
+  Endeksi'ne (tahmini kâr / tahmini süre) göre sıralar.
+- `POST /price/sample-sales`, `POST /price/predict`, `POST /scan` —
+  ilgili backend endpoint'leri.
+- **Frontend:** "6) Kârlılık Taraması" paneli, "0) MAKS / Kadastro
+  Verisi" ile yüklenmiş parselleri tarar, sonuçları haritada Kârlılık
+  Endeksi'ne göre kırmızı→sarı→yeşil renklenen bir dolgu katmanı
+  (`scan-results-fill`) olarak gösterir ve sıralı listeyi yan panelde
+  listeler.
+
+> ⚠️ Sandbox'ta `fastapi`/`pydantic` kurulu olmadığından `/scan` ve
+> `/price/*` endpoint'leri canlı bir HTTP isteğiyle test edilememiştir;
+> `scan.py`'ın iç mantığı `pydantic`'i geçici olarak stub'layan bağımsız
+> bir Python betiğiyle uçtan uca doğrulandı (parsel → fiyat tahmini →
+> TAKS/KAKS hesabı → Kârlılık Endeksi sıralaması doğru çalışıyor).
+> Frontend tarafı (`btn-scan` mantığı) `node --check` ile sözdizimi
+> olarak doğrulandı, gerçek bir tarayıcıda backend'e bağlı şekilde
+> test edilmedi.
+
 ## Nasıl Kullanılır
 
 1. **Backend'i başlatın:**
@@ -206,20 +257,28 @@ maddelerin **gerçekçi inşa edilebilirliğine** göre yapılmıştır.
 - 3DCityDB/PostGIS pilot entegrasyonu (`/citydb/buildings`,
   `/citydb/context`, `/citydb/parcels`) — pilot veriyle doğrulanmayı
   bekliyor.
+- **Proaktif Kârlılık Endeksi taraması + GWR-lite fiyat tahmini**
+  (`/scan`, `/price/predict`, "6) Kârlılık Taraması" paneli) — bkz.
+  "Bölgesel Fiyat Tahmini ve Kârlılık Taraması" bölümü yukarıda; bu,
+  pazardaki reaktif/tek-parsel rakiplerden (Evveko, Kolayimar) ayrışan
+  ana farklılaştırıcı özelliktir.
 
 ### Faz 1 — Mevcut altyapı üzerine doğrudan inşa edilebilir
 Bunlar, ek dış API/kurumsal erişim gerektirmeden, mevcut hesaplama
 motoru ve 3DCityDB pilotu üzerine kodlanabilir:
-1. **"En Kârlı Bölge" tarama + ısı haritası** (vizyon §3): `/calculate`
-   mantığının pilot bölgedeki tüm parsellere toplu uygulanması, sonuçların
-   Kârlılık Endeksi'ne (K) göre MapLibre heatmap katmanında gösterilmesi.
+1. ~~"En Kârlı Bölge" tarama + ısı haritası~~ — **yapıldı** (`/scan`,
+   bkz. yukarıda). Sıradaki adım: sentetik fiyat verisini gerçek/açık
+   satış verisiyle değiştirmek ve heatmap'i tek tek poligon yerine
+   gerçek bir MapLibre heatmap katmanına (büyük parsel sayılarında
+   performans için) taşımak.
 2. **Viewshed / Sky View Factor 3D analizi** (vizyon §1.C): gerçek ışın
    atma (ray casting) gerektirir; MapLibre'de yapılamaz, CesiumJS/3D
    Tiles tabanlı bir "Mühendislik ve Analiz Katmanı" (vizyon §5) eklenmesi
    gerekir — 3DCityDB binalarıyla beslenebilir.
-3. **GWR (coğrafi ağırlıklı regresyon) fiyat tahmin iskeleti** (vizyon §1.B):
-   `mgwr` ile algoritmik iskelet kurulabilir, ancak gerçek satış verisi
-   olmadan eğitilemez/doğrulanamaz — örnek/sahte veriyle başlanabilir.
+3. ~~GWR (coğrafi ağırlıklı regresyon) fiyat tahmin iskeleti~~ —
+   **GWR-lite olarak yapıldı** (`price_model.py`). Sıradaki adım: gerçek
+   satış verisi + `numpy`/`mgwr` temin edilince çok değişkenli (m², kat,
+   manzara, deprem riski) gerçek GWR'a yükseltmek.
 4. Gerçek LoD2 bina mesh'inin (sadece ayak izi değil, çatı/cephe) 3D
    Tiles/glTF olarak CesiumJS veya deck.gl Tile3DLayer ile gösterilmesi
    (MapLibre'nin yerini/ekini alarak).

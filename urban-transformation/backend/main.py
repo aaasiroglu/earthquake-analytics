@@ -14,6 +14,8 @@ from data_ingestion import (
     sample_geojson,
     to_normalized_geojson,
 )
+from price_model import KernelWeightedPriceModel, synthetic_sales
+from scan import ScanParams, ScanParcel, ScanResult, scan_parcels
 
 app = FastAPI(title="Kentsel Dönüşüm Karar Destek API")
 
@@ -113,6 +115,53 @@ def citydb_context(geometry: GeometryPayload):
         return citydb.building_context_for_geometry(geometry.model_dump())
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"3DCityDB sorgu hatası: {exc}") from exc
+
+
+@app.get("/price/sample-sales")
+def price_sample_sales(lon: float, lat: float, n: int = 60, seed: int = 42):
+    """Demo amaçlı SENTETİK satış noktaları üretir. Gerçek bir değerleme/
+    rapor için KULLANILAMAZ — sadece /price/predict ve /scan'i test etmek
+    içindir. Gerçek bölgesel satış verisi temin edilince bu uç nokta
+    devre dışı bırakılmalı, sales doğrudan veritabanından/dosyadan
+    okunmalıdır."""
+    return {
+        "warning": "SENTETİK (uydurma) veri. Gerçek değerleme için kullanılamaz.",
+        "sales": synthetic_sales(lon, lat, n=n, seed=seed),
+    }
+
+
+class PricePredictRequest(BaseModel):
+    lon: float
+    lat: float
+    sales: list[dict[str, float]]
+    bandwidth_km: float = 1.5
+
+
+@app.post("/price/predict")
+def price_predict(payload: PricePredictRequest):
+    """Tek bir nokta için GWR-lite (Gauss çekirdek ağırlıklı yerel ortalama)
+    ile bölgesel m² satış fiyatı tahmini döner."""
+    model = KernelWeightedPriceModel(payload.sales, bandwidth_km=payload.bandwidth_km)
+    return model.predict(payload.lon, payload.lat)
+
+
+class ScanRequest(BaseModel):
+    parcels: list[ScanParcel]
+    params: ScanParams
+    sales: list[dict[str, float]]
+
+
+@app.post("/scan", response_model=list[ScanResult])
+def scan_endpoint(payload: ScanRequest) -> list[ScanResult]:
+    """Şehir ölçekli, proaktif Kârlılık Endeksi taraması: verilen parsel
+    listesini, her biri için tahmini bölgesel satış fiyatı + TAKS/KAKS
+    hesabı uygulayarak kârlılığa göre sıralar ("Yatırıma Hazır Adalar")."""
+    if not payload.parcels:
+        raise HTTPException(status_code=400, detail="parcels listesi boş olamaz.")
+    try:
+        return scan_parcels(payload.parcels, payload.params, payload.sales)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/health")
