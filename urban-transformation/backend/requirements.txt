@@ -6,3 +6,5 @@ geopandas
 fiona
 shapely
 pyproj
+sqlalchemy
+psycopg2-binary

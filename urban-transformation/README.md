@@ -50,6 +50,78 @@ bu akışın temel iskeleti kuruldu:
 > edildi ve doğru çalışıyor; `load_vector_file`/`/data/import`'u gerçek
 > bir İBB dosyasıyla kendi ortamınızda doğrulamanız gerekir.
 
+## 3DCityDB Pilot Kurulumu
+
+Gerçek bina kütlesi (CityGML LoD2 ayak izi + ölçülmüş yükseklik/kat sayısı)
+ve parsel verisini bir veritabanından sunmak için, dosya yükleme akışına
+ek/alternatif olarak **3DCityDB (PostGIS şeması)** entegrasyonu eklendi.
+
+> ⚠️ Bu bölümdeki Docker/SQL komutları, ajan sandbox'ında çalışan bir
+> Docker daemon ve internet erişimi olmadığı için **burada
+> çalıştırılıp test edilememiştir**. `backend/citydb.py` içindeki
+> SQL sorguları 3DCityDB v4 şemasının dokümante edilen tablo yapısına
+> (`building`, `thematic_surface`, `surface_geometry`, `cityobject`)
+> göre yazıldı; pilot veriyle ilk denemede uyarlama gerekebilir (bkz.
+> dosyanın başındaki not).
+
+### 1) Veritabanını ayağa kaldırın
+
+```
+cd urban-transformation/docker
+cp .env.example .env   # gerekirse şifreyi değiştirin
+docker compose up -d
+```
+
+Bu, 3DCityDB v4 şemasını hazır şekilde içeren bir PostGIS konteyneri
+başlatır (5432 portu). Güncel imaj/tag bilgisini çalıştırmadan önce
+[Docker Hub](https://hub.docker.com/r/3dcitydb/3dcitydb-postgis)
+üzerinden doğrulayın.
+
+### 2) Pilot CityGML'i import edin
+
+3DCityDB'nin resmi `citydb-tool` (veya klasik Importer/Exporter) CLI'ı ile:
+
+```
+citydb-tool import --db-host=localhost --db-port=5432 --db-name=citydb \
+  --db-username=postgres --db-password=citydb pilot-bolge.gml
+```
+
+### 3) Parsel SHP'sini ayrı bir PostGIS tablosuna yükleyin
+
+3DCityDB şeması bina/şehir nesnesi odaklıdır, kadastro parseli için ayrı
+bir tablo kullanıyoruz; `ogr2ogr` ile WGS84'e (EPSG:4326) dönüştürerek
+yükleyin (parsel SHP'nizin gerçek CRS'ini `-s_srs` ile belirtin, örn.
+`EPSG:5253`):
+
+```
+ogr2ogr -f PostgreSQL "PG:host=localhost dbname=citydb user=postgres password=citydb" \
+  parsel.shp -nln parcels.parcel -s_srs EPSG:5253 -t_srs EPSG:4326 -lco GEOMETRY_NAME=geom
+```
+
+### 4) Backend'i veritabanına bağlayın
+
+`docker/.env.example`'daki değişkenleri backend'i başlatmadan önce
+ortam değişkeni olarak ayarlayın (`CITYDB_HOST`, `CITYDB_PORT`,
+`CITYDB_NAME`, `CITYDB_USER`, `CITYDB_PASSWORD`, `PARCELS_TABLE`).
+Ayarlanmazsa `/citydb/*` endpoint'leri `501` döner, dosya yükleme
+(`/data/import`) akışı bundan etkilenmeden çalışmaya devam eder.
+
+### 5) Kullanım
+
+- `GET /citydb/buildings?minx&miny&maxx&maxy` — bbox içindeki gerçek
+  bina ayak izi + yükseklik/kat sayısını GeoJSON olarak döner. Frontend'de
+  "Görünen Alanı 3DCityDB'den Yükle" butonu, haritanın görünen sınırlarını
+  (`map.getBounds()`) kullanarak bu endpoint'i çağırır ve binaları gerçek
+  yüksekliğiyle 3B ekstrüde eder (artık parametrik tahmin değil).
+- `POST /citydb/context` — çizilen/seçilen bir parsel geometrisiyle
+  kesişen binaları bulup toplam ayak izi alanı ve maksimum kat sayısını
+  döner; "Seçili Parselin Mevcut Durumunu Çek" butonu bunu çağırıp
+  "Mevcut Durum" formunu otomatik doldurur (manuel bina ayak izi çizmeye
+  gerek kalmadan).
+- `GET /citydb/parcels?minx&miny&maxx&maxy` — `PARCELS_TABLE`'daki
+  parselleri, `data_ingestion.py`'daki aynı alias-eşleştirme mantığıyla
+  normalize edip döner.
+
 ## Nasıl Kullanılır
 
 1. **Backend'i başlatın:**
@@ -119,12 +191,16 @@ olarak planlanmalıdır.
 ## Yol Haritası (sonraki aşamalar)
 
 1. ~~Gerçek kadastro/imar verisi entegrasyonu~~ → temel ingestion iskeleti
-   eklendi (`/data/import`, `/data/sample`); gerçek MAKS GML/SHP
-   dosyasıyla doğrulama ve `ALIASES` sözlüğünün gerçek şemaya göre
-   güncellenmesi bekliyor.
-2. Büyük dosyalar için performans (sunucu tarafında basitleştirme/
-   tiling) ve doğrudan İBB açık veri servislerinden (WFS/WMS) otomatik
-   çekim — dosya yüklemeye gerek kalmadan.
+   (`/data/import`, `/data/sample`) **ve** 3DCityDB/PostGIS tabanlı pilot
+   bölge entegrasyonu (`/citydb/buildings`, `/citydb/context`,
+   `/citydb/parcels`) eklendi; pilot CityGML/SHP ile uçtan uca doğrulama
+   ve gerekirse SQL sorgularının/`ALIASES` eşlemesinin güncellenmesi
+   bekliyor (bkz. "3DCityDB Pilot Kurulumu").
+2. Pilot doğrulandıktan sonra: büyük dosyalar için performans (tiling),
+   3D Tiles/glTF dışa aktarımı ile gerçek LoD2 bina mesh'inin (sadece
+   ayak izi değil, çatı/cephe) MapLibre yerine CesiumJS veya
+   deck.gl Tile3DLayer ile gösterilmesi, ve doğrudan İBB açık veri
+   servislerinden (WFS/WMS) otomatik çekim.
 3. Birden fazla parsel/bina için optimizasyon (en uygun kat sayısı/kâr
    dengesi önerisi).
 4. Gerçek generative AI tabanlı 3B bina/mimari model üretimi.

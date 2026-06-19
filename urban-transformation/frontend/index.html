@@ -41,6 +41,14 @@
     <h1>Kentsel Dönüşüm Karar Destek Aracı</h1>
     <p class="hint">Parselleri ve mevcut bina ayak izlerini haritada çizin, birden çok parseli birleştirin, hedef imar değerlerini girin ve önerilen yeni binayı 3B olarak görün.</p>
 
+    <h2>3DCityDB Pilot Bölge (opsiyonel)</h2>
+    <p class="hint">Pilot bölge CityGML/SHP verisi 3DCityDB + PostGIS'e import edildiyse, görünen harita alanındaki gerçek bina ayak izi/yükseklik ve parsel verisini çekebilirsiniz (kurulum: urban-transformation/docker ve README).</p>
+    <div class="row">
+      <button id="btn-citydb-load" class="secondary">Görünen Alanı 3DCityDB'den Yükle</button>
+      <button id="btn-citydb-context" class="secondary">Seçili Parselin Mevcut Durumunu Çek</button>
+    </div>
+    <div id="citydb-info" class="hint"></div>
+
     <h2>0) MAKS / Kadastro Verisi (opsiyonel)</h2>
     <p class="hint">İBB/MAKS kaynaklı .gml veya tam shapefile setini (.shp+.dbf+.shx, .zip olarak) içe aktarın; haritada görünen parsel/binalara tıklayıp seçerek hesaplama formuna aktarabilirsiniz. Henüz dosyanız yoksa örnek veriyle deneyebilirsiniz.</p>
     <input id="import-file" type="file" accept=".gml,.zip" />
@@ -145,6 +153,7 @@ map.on('load', () => {
   map.addSource('proposed', { type: 'geojson', data: emptyFC() });
   map.addSource('imported', { type: 'geojson', data: emptyFC() });
   map.addSource('imported-selected', { type: 'geojson', data: emptyFC() });
+  map.addSource('citydb-buildings', { type: 'geojson', data: emptyFC() });
 
   map.addLayer({ id: 'draft-fill', type: 'fill', source: 'draft', paint: { 'fill-color': '#f2c14e', 'fill-opacity': 0.25 } });
   map.addLayer({ id: 'draft-line', type: 'line', source: 'draft', paint: { 'line-color': '#f2c14e', 'line-width': 2 } });
@@ -168,6 +177,16 @@ map.on('load', () => {
     document.getElementById('imported-info').innerHTML =
       `Seçili: Parsel ${p.parcel_id || '-'} · ${p.district || ''} ${p.neighborhood || ''}<br/>` +
       `Alan: ${p.parcel_area_m2 ?? '-'} m² · Kat: ${p.floor_count ?? '-'} · Bağ. Bölüm: ${p.unit_count ?? '-'} · Nüfus: ${p.population ?? '-'}`;
+  });
+
+  map.addLayer({
+    id: 'citydb-buildings-extrusion', type: 'fill-extrusion', source: 'citydb-buildings',
+    paint: {
+      'fill-extrusion-color': '#16a2b8',
+      'fill-extrusion-opacity': 0.6,
+      'fill-extrusion-height': ['get', 'height'],
+      'fill-extrusion-base': 0
+    }
   });
 
   map.addLayer({
@@ -243,6 +262,45 @@ document.getElementById('btn-union-parcels').onclick = () => {
   renderPolygons();
   recomputeAreas();
   setStatus(`${parcels.length} parsel birleştirildi.`);
+};
+
+document.getElementById('btn-citydb-load').onclick = async () => {
+  const apiUrl = document.getElementById('api_url').value.replace(/\/$/, '');
+  const b = map.getBounds();
+  const params = `minx=${b.getWest()}&miny=${b.getSouth()}&maxx=${b.getEast()}&maxy=${b.getNorth()}`;
+  setStatus('3DCityDB\'den bina verisi yükleniyor...');
+  try {
+    const res = await fetch(`${apiUrl}/citydb/buildings?${params}`);
+    if (!res.ok) throw new Error(await res.text());
+    const geojson = await res.json();
+    map.getSource('citydb-buildings').setData(geojson);
+    document.getElementById('citydb-info').textContent = `${geojson.features.length} bina yüklendi.`;
+    setStatus('3DCityDB bina verisi yüklendi.');
+  } catch (err) {
+    setStatus('Hata: ' + err.message);
+  }
+};
+
+document.getElementById('btn-citydb-context').onclick = async () => {
+  const base = parcels[0] || (selectedImportedFeature && selectedImportedFeature.geometry ? { geometry: selectedImportedFeature.geometry } : null);
+  if (!base) { setStatus('Önce bir parsel çizin veya seçin.'); return; }
+  const apiUrl = document.getElementById('api_url').value.replace(/\/$/, '');
+  setStatus('3DCityDB\'den mevcut durum çekiliyor...');
+  try {
+    const res = await fetch(`${apiUrl}/citydb/context`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(base.geometry)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const ctx = await res.json();
+    document.getElementById('existing_footprint_area_m2').value = ctx.existing_footprint_area_m2;
+    document.getElementById('existing_floor_count').value = ctx.existing_floor_count;
+    document.getElementById('citydb-info').textContent =
+      `${ctx.building_count} bina kesişiyor · toplam ayak izi ${ctx.existing_footprint_area_m2} m² · maks. kat ${ctx.existing_floor_count}`;
+    setStatus('Mevcut durum 3DCityDB\'den çekildi.');
+  } catch (err) {
+    setStatus('Hata: ' + err.message);
+  }
 };
 
 function renderImported(geojson) {

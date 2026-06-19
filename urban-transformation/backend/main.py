@@ -4,7 +4,9 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
+import citydb
 from calculations import CalculationInput, CalculationResult, calculate
 from data_ingestion import (
     GEOPANDAS_AVAILABLE,
@@ -64,6 +66,59 @@ def sample_data():
     return sample_geojson()
 
 
+def _require_citydb():
+    if not citydb.CITYDB_CONFIGURED:
+        raise HTTPException(
+            status_code=501,
+            detail=(
+                "3DCityDB bağlantısı yapılandırılmamış. CITYDB_HOST, "
+                "CITYDB_USER, CITYDB_PASSWORD vb. ortam değişkenlerini "
+                "ayarlayın (bkz. docker/.env.example)."
+            ),
+        )
+
+
+@app.get("/citydb/buildings")
+def citydb_buildings(minx: float, miny: float, maxx: float, maxy: float):
+    """Verilen bbox içindeki 3DCityDB binalarını (gerçek ayak izi + yükseklik) döner."""
+    _require_citydb()
+    try:
+        return citydb.buildings_in_bbox(minx, miny, maxx, maxy)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"3DCityDB sorgu hatası: {exc}") from exc
+
+
+@app.get("/citydb/parcels")
+def citydb_parcels(minx: float, miny: float, maxx: float, maxy: float):
+    """Verilen bbox içindeki parsel tablosunu (ogr2ogr ile yüklenmiş SHP) döner."""
+    _require_citydb()
+    try:
+        return citydb.parcels_in_bbox(minx, miny, maxx, maxy)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Parsel sorgu hatası: {exc}") from exc
+
+
+class GeometryPayload(BaseModel):
+    type: str
+    coordinates: list
+
+
+@app.post("/citydb/context")
+def citydb_context(geometry: GeometryPayload):
+    """Verilen parsel/alan geometrisiyle kesişen binalardan mevcut ayak izi
+    alanı ve kat sayısını (TAKS/KAKS hesaplaması için "mevcut durum" girdisi
+    olarak) hesaplar."""
+    _require_citydb()
+    try:
+        return citydb.building_context_for_geometry(geometry.model_dump())
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"3DCityDB sorgu hatası: {exc}") from exc
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "geopandas_available": GEOPANDAS_AVAILABLE}
+    return {
+        "status": "ok",
+        "geopandas_available": GEOPANDAS_AVAILABLE,
+        "citydb_configured": citydb.CITYDB_CONFIGURED,
+    }
