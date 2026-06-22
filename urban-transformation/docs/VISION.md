@@ -33,6 +33,53 @@
 >   geldiğinde `backend/data_ingestion.py`'daki `ALIASES` sözlüğüne
 >   eklenmesi planlanıyor (bkz. ilgili dosyadaki not).
 
+> ### Round 3 — Üretime Geçiş (Go-Live) Notları (kayıt amaçlı, henüz kod yazılmadı)
+> 2026 ortası itibarıyla güncel sistem/pazar araştırması, projeyi gerçekten
+> canlıya almak için aşağıdaki somut kararları/güncellemeleri ortaya
+> koydu. Bunlar da Round 2'deki gibi **sadece kayıt** — kod henüz
+> yazılmadı, gelecekteki build round'larının girdisi:
+>
+> **Veri katmanı:** TUCBS, 1 Ocak 2025'ten itibaren e-Devlet üzerinden
+> kısmen açık: kamu kurumlarına açık 630 coğrafi veri katmanından 100'ü
+> artık vatandaşlara da açık (TKGM sorumluluğunda Kadastro/Ortogörüntü/
+> Bina temaları dahil). Bu, aşağıdaki Faz 2'deki "TAKBİS/LADM 3D kadastro
+> modellemesi resmi erişim gerektirir" maddesini **kısmen güncelliyor**
+> — tam kurumsal entegrasyon hâlâ gerekebilir, ama bir MVP için gerçek
+> açık katmanlarla başlamak artık araştırılabilir bir Faz 1 adayı
+> (madde Faz 2'den silinmedi, sadece bu not eklendi).
+>
+> **Fiyat modeli yükseltme yolu (3 aşama):** TCMB'nin resmi, açık, aylık
+> güncellenen, bölge bazlı Konut Fiyat Endeksi (KFE) — `price_model.py`'nin
+> "tamamen SENTETİK" sorununu çözecek ilk gerçek, dış API anlaşması
+> gerektirmeyen veri kaynağı. Önerilen yükseltme sırası: (1) mevcut
+> GWR-lite (SENTETİK) → (2) GWR-lite tahminini bölgesel TCMB KFE
+> çarpanıyla kalibre etme (bağımlılıksız, hemen yapılabilir) → (3) gerçek
+> satış verisi + `mgwr`/`numpy` ile çok değişkenli GWR.
+>
+> **Rekabet güncellemesi:** Evveko 2026'da hızla büyüdü — mobil uygulama
+> (PayTR ödeme + NetGSM SMS + Firebase bildirim), KAKS/TAKS/havuz/
+> "Yarısı Bizden"/fizibilite için özel kodlanmış hesap motorları,
+> Ocak-Nisan 2026'da 22.065 aktif kullanıcı, hâlâ aynı 7 pilot ilçe.
+> Hâlâ **reaktif/B2C eşleştirme** modeli — bu projenin proaktif şehir
+> ölçekli tarama farklılaşması geçerliliğini koruyor, ama rekabetin hızı
+> not edilmeli.
+>
+> **Üretim altyapısı kararları:** Ödeme için Stripe Türkiye'de yerel TL
+> tahsilatı sağlamıyor — **iyzico** (%2,19-2,99 komisyon, hazır abonelik
+> ürünü) veya **PayTR** (%1,99-2,89 komisyon, B2B "Link ile Ödeme")
+> kullanılmalı. Barındırma: AWS'nin Türkiye'de resmi bölgesi yok; gerçek
+> müşteri/parsel verisiyle üretimde **KVKK uyumlu Türkiye'de yerleşik
+> veri merkezi** (örn. Radore, CloudSpark, DorukCloud) zorunlu bir mimari
+> karar. 3D için glTF 2.0 + 3D Tiles 1.1 + CesiumJS/deck.gl Tile3DLayer
+> üretim deseni doğrulandı (MapLibre'den geçiş, mevcut Faz 1 madde 4 ile
+> uyumlu).
+>
+> **Generative 3D model build-vs-buy listesi:** "3B Bina Modeli Hakkında
+> Önemli Not" bölümündeki "ileride generative 3D model servisi entegre
+> edilebilir" notuna somut adaylar: Autodesk Forma ($185/ay veya AEC
+> Collection ile ücretsiz), TestFit (~$250/ay), Finch3D (ücretsiz katman
+> + $50/ay), SnapTrude, Architechtures.
+
 Bu döküman; kentsel dönüşüm ve afet odaklı kent planlamasında Müteahhit, Mühendis, Mimar, Emlakçı ve Vatandaş (Site Yönetimi) arasındaki finansal fizibilite ve sosyal mutabakat süreçlerini tamamen bilimsel, nesnel ve otomatik hale getiren ulusal ölçekli platformun mimarisini tanımlar.
 
 ---

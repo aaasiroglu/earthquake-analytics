@@ -285,9 +285,12 @@ motoru ve 3DCityDB pilotu üzerine kodlanabilir:
    Tiles tabanlı bir "Mühendislik ve Analiz Katmanı" (vizyon §5) eklenmesi
    gerekir — 3DCityDB binalarıyla beslenebilir.
 3. ~~GWR (coğrafi ağırlıklı regresyon) fiyat tahmin iskeleti~~ —
-   **GWR-lite olarak yapıldı** (`price_model.py`). Sıradaki adım: gerçek
-   satış verisi + `numpy`/`mgwr` temin edilince çok değişkenli (m², kat,
-   manzara, deprem riski) gerçek GWR'a yükseltmek.
+   **GWR-lite olarak yapıldı** (`price_model.py`). Sıradaki adımlar:
+   (a) önce TCMB'nin resmi, açık, aylık güncellenen bölgesel Konut Fiyat
+   Endeksi (KFE) ile GWR-lite tahminini kalibre etmek (dış API anlaşması
+   gerektirmez, bağımlılıksız, hemen yapılabilir bir ara adım), (b) sonra
+   gerçek satış verisi + `numpy`/`mgwr` temin edilince çok değişkenli
+   (m², kat, manzara, deprem riski) gerçek GWR'a yükseltmek.
 4. Gerçek LoD2 bina mesh'inin (sadece ayak izi değil, çatı/cephe) 3D
    Tiles/glTF olarak CesiumJS veya deck.gl Tile3DLayer ile gösterilmesi
    (MapLibre'nin yerini/ekini alarak).
@@ -299,7 +302,13 @@ motoru ve 3DCityDB pilotu üzerine kodlanabilir:
 Bunlar gerçek kod yazılarak "şimdi" çözülemez; ilgili kurumla veri
 erişimi/API anlaşması olmadan iskelet ötesine geçilemez:
 - **TAKBİS/LADM (ISO 19152) 3D kadastro modellemesi** (vizyon §1.A) —
-  TAKBİS verisine resmi erişim gerekir.
+  TAKBİS verisine resmi erişim gerekir. *Güncelleme (2026 ortası):* TUCBS
+  1 Ocak 2025'ten itibaren e-Devlet üzerinden kısmen açık — kamuya açık
+  630 katmandan 100'ü artık vatandaşlara da açık (TKGM sorumluluğunda
+  Kadastro/Ortogörüntü/Bina temaları dahil). Tam kurumsal entegrasyon
+  hâlâ gerekebilir, ama bu açık katmanlarla bir MVP'nin başlatılması
+  artık araştırılabilir bir Faz 1 adayıdır (bkz. `docs/VISION.md`
+  "Round 3" notu).
 - **HKMO/İMO canlı birim maliyet API'si ve TMMOB "dijital kaşe"
   sertifikasyonu** (vizyon §4.A) — meslek odalarıyla kurumsal entegrasyon
   ve yetkilendirme gerekir.
@@ -313,5 +322,11 @@ erişimi/API anlaşması olmadan iskelet ötesine geçilemez:
 Vizyon §6'daki SaaS aboneliği, rapor başına ücretlendirme ve komisyon
 modeli; ürün/iş geliştirme ve hukuki danışmanlık gerektiren ticari
 kararlardır — bu README'nin veya kod tabanının kapsamı dışındadır,
-ancak ürün olgunlaştığında bir faturalama/yetkilendirme katmanı
-(örn. Stripe + rol bazlı erişim) olarak teknik karşılığı eklenebilir.
+ancak ürün olgunlaştığında bir faturalama/yetkilendirme katmanı olarak
+teknik karşılığı eklenebilir. *Güncelleme (2026 ortası):* Stripe
+Türkiye'de yerel TL tahsilatı sağlamadığından, bu katman **Stripe değil,
+iyzico veya PayTR** ile kurulmalı; gerçek müşteri/parsel verisiyle
+üretime geçişte KVKK gereği **Türkiye'de yerleşik, KVKK uyumlu bir veri
+merkezinde** barındırma zorunlu bir mimari karar olacak (AWS'nin
+Türkiye'de resmi bir bölgesi yok). Detaylar için `docs/VISION.md`
+"Round 3" notuna bakın.
