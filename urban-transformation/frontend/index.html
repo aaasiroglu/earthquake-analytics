@@ -2,673 +2,1056 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8"/>
-<title>KentselSim — Kentsel Dönüşüm Simülasyonu</title>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>KentselSim — 3D Kentsel Dönüşüm GIS</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"/>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg: #060e1a;
-  --panel: rgba(13,27,45,0.88);
-  --border: rgba(56,189,248,0.18);
-  --accent: #38bdf8;
-  --accent2: #818cf8;
-  --green: #34d399;
-  --red: #fb7185;
-  --yellow: #fbbf24;
-  --text: #e2e8f0;
-  --muted: #94a3b8;
-  --blur: blur(14px);
-  --radius: 12px;
+/* ── RESET & TOKENS ─────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --c-bg:#050d1a; --c-panel:rgba(8,18,36,.92); --c-panel2:rgba(6,14,28,.96);
+  --c-border:rgba(56,189,248,.15); --c-border2:rgba(56,189,248,.28);
+  --c-accent:#38bdf8; --c-accent2:#818cf8; --c-green:#10b981; --c-red:#ef4444;
+  --c-yellow:#f59e0b; --c-muted:#64748b; --c-text:#f1f5f9; --c-text2:#94a3b8;
+  --blur:blur(16px); --r:10px; --r-sm:6px; --nav-h:52px; --sb-h:36px;
+  --panel-w:282px; --insp-w:300px;
+  --trans:all .2s ease; --trans-slow:.4s ease;
 }
-html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
-#map { position: fixed; inset: 0; }
-#top-bar {
-  position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 100;
-  background: rgba(6,14,26,0.92); backdrop-filter: var(--blur);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 8px; padding: 0 16px;
+html,body{height:100%;background:var(--c-bg);color:var(--c-text);
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;overflow:hidden;font-size:13px}
+#map{position:fixed;inset:0}
+
+/* ── NAV ───────────────────────────────────────────────────────────────────── */
+#nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:200;
+  background:var(--c-panel2);backdrop-filter:var(--blur);
+  border-bottom:1px solid var(--c-border);
+  display:flex;align-items:center;gap:6px;padding:0 14px;
 }
-#logo { font-size: 17px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; white-space: nowrap; margin-right: 8px; }
-#logo span { color: var(--accent2); }
-.mode-btn {
-  padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
-  background: transparent; color: var(--muted); font-size: 12px; font-weight: 600;
-  cursor: pointer; transition: all .2s; letter-spacing: .4px;
+#logo{font-size:16px;font-weight:800;color:var(--c-accent);letter-spacing:-.5px;
+  white-space:nowrap;margin-right:6px;display:flex;align-items:center;gap:6px}
+#logo svg{width:22px;height:22px}
+.mode-tab{
+  display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:18px;
+  border:1px solid transparent;background:transparent;color:var(--c-muted);
+  font-size:11px;font-weight:700;cursor:pointer;transition:var(--trans);
+  letter-spacing:.4px;text-transform:uppercase;white-space:nowrap
 }
-.mode-btn:hover { border-color: var(--accent); color: var(--accent); }
-.mode-btn.active { background: var(--accent); border-color: var(--accent); color: #000; }
-#api-dot { width: 8px; height: 8px; border-radius: 50%; background: #6b7280; margin-left: auto; flex-shrink: 0; transition: background .4s; }
-#api-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
-#api-dot.err { background: var(--red); }
-#api-label { font-size: 11px; color: var(--muted); }
-#hud-left {
-  position: fixed; left: 12px; top: 68px; width: 240px; z-index: 90;
-  background: var(--panel); backdrop-filter: var(--blur);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 14px; display: flex; flex-direction: column; gap: 10px;
+.mode-tab:hover{border-color:var(--c-border2);color:var(--c-accent)}
+.mode-tab.active{background:var(--c-accent);color:#000;border-color:var(--c-accent)}
+.mode-tab svg{width:13px;height:13px;flex-shrink:0}
+.nav-sep{width:1px;height:22px;background:var(--c-border);margin:0 4px;flex-shrink:0}
+.nav-tool{
+  display:flex;align-items:center;justify-content:center;
+  width:30px;height:30px;border-radius:var(--r-sm);
+  border:1px solid transparent;background:transparent;
+  color:var(--c-muted);cursor:pointer;transition:var(--trans);font-size:14px;
+  flex-shrink:0;position:relative
 }
-.gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-#gauge-svg { width: 110px; height: 80px; }
-#gauge-value { font-size: 22px; font-weight: 700; color: var(--accent); text-align: center; line-height: 1; }
-#gauge-label { font-size: 10px; color: var(--muted); text-align: center; }
-.score-row { display: flex; justify-content: space-between; align-items: center; }
-.score-badge {
-  font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 10px;
-  background: rgba(56,189,248,0.15); color: var(--accent); border: 1px solid var(--border);
+.nav-tool:hover{border-color:var(--c-border2);color:var(--c-accent);background:rgba(56,189,248,.06)}
+.nav-tool.active{background:rgba(56,189,248,.15);color:var(--c-accent);border-color:var(--c-border2)}
+.nav-tool[data-tooltip]:hover::after{
+  content:attr(data-tooltip);position:absolute;top:calc(100% + 6px);left:50%;
+  transform:translateX(-50%);background:var(--c-panel2);border:1px solid var(--c-border);
+  color:var(--c-text);font-size:10px;white-space:nowrap;padding:3px 7px;border-radius:4px;
+  pointer-events:none;z-index:9999
 }
-.score-badge.red { background: rgba(251,113,133,0.15); color: var(--red); border-color: rgba(251,113,133,0.3); }
-.score-badge.yellow { background: rgba(251,191,36,0.15); color: var(--yellow); border-color: rgba(251,191,36,0.3); }
-.score-badge.green { background: rgba(52,211,153,0.15); color: var(--green); border-color: rgba(52,211,153,0.3); }
-.score-badge.gold { background: rgba(245,158,11,0.2); color: #f59e0b; border-color: rgba(245,158,11,0.4); animation: goldGlow 2s ease-in-out infinite; }
-@keyframes goldGlow { 0%,100% { box-shadow: none; } 50% { box-shadow: 0 0 12px 2px rgba(245,158,11,0.5); } }
-.kpi-row { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
-.kpi-val { color: var(--text); font-weight: 600; }
-.kpi-val.pos { color: var(--green); }
-.kpi-val.neg { color: var(--red); }
-.hud-btn {
-  width: 100%; padding: 7px; border-radius: 8px; border: 1px solid var(--border);
-  background: rgba(56,189,248,0.08); color: var(--accent); font-size: 12px;
-  font-weight: 600; cursor: pointer; transition: all .2s; text-align: center;
+#geocode-wrap{
+  position:relative;display:flex;align-items:center;
+  background:rgba(255,255,255,.04);border:1px solid var(--c-border);
+  border-radius:var(--r-sm);overflow:hidden;transition:var(--trans);
+  width:0;opacity:0;
 }
-.hud-btn:hover { background: rgba(56,189,248,0.18); }
-.hud-btn.primary { background: var(--accent); color: #000; border-color: var(--accent); }
-.hud-btn.primary:hover { background: #7dd3fc; }
-#badge-row { display: flex; gap: 4px; flex-wrap: wrap; }
-.badge-chip { font-size: 14px; cursor: default; opacity: 0.3; transition: opacity .3s; }
-.badge-chip.earned { opacity: 1; }
-.divider { height: 1px; background: var(--border); }
-#hud-right {
-  position: fixed; right: 12px; top: 68px; width: 320px; z-index: 90;
-  background: var(--panel); backdrop-filter: var(--blur);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  max-height: calc(100vh - 80px); overflow-y: auto; display: none;
+#geocode-wrap.open{width:180px;opacity:1}
+#geocode-input{
+  background:transparent;border:none;outline:none;color:var(--c-text);
+  font-size:12px;padding:5px 10px;width:100%;
 }
-#hud-right.visible { display: block; }
-.panel-header {
-  padding: 12px 14px 8px; font-size: 13px; font-weight: 700; color: var(--accent);
-  border-bottom: 1px solid var(--border); position: sticky; top: 0;
-  background: var(--panel); backdrop-filter: var(--blur); z-index: 1;
+#geocode-input::placeholder{color:var(--c-muted)}
+#api-dot{width:7px;height:7px;border-radius:50%;background:var(--c-muted);
+  margin-left:auto;flex-shrink:0;transition:background .4s}
+#api-dot.ok{background:var(--c-green);box-shadow:0 0 6px var(--c-green)}
+#api-dot.err{background:var(--c-red)}
+#api-ver{font-size:10px;color:var(--c-muted);margin-left:4px}
+
+/* ── LEFT PANEL ─────────────────────────────────────────────────────────────── */
+#panel-left{
+  position:fixed;left:0;top:var(--nav-h);bottom:var(--sb-h);width:var(--panel-w);
+  z-index:100;background:var(--c-panel);backdrop-filter:var(--blur);
+  border-right:1px solid var(--c-border);
+  display:flex;flex-direction:column;overflow:hidden;
+  transition:transform .3s ease;
 }
-.panel-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
-.field-group label { display: block; font-size: 10px; color: var(--muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .5px; }
-.field-group input, .field-group select {
-  width: 100%; padding: 6px 8px; border-radius: 6px;
-  border: 1px solid var(--border); background: rgba(255,255,255,0.04);
-  color: var(--text); font-size: 12px; outline: none;
+#panel-left.collapsed{transform:translateX(calc(-1 * var(--panel-w)))}
+#panel-collapse{
+  position:absolute;right:-14px;top:50%;transform:translateY(-50%);
+  width:14px;height:48px;background:var(--c-panel);border:1px solid var(--c-border);
+  border-left:none;border-radius:0 4px 4px 0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;color:var(--c-muted);font-size:9px;
+  transition:var(--trans);z-index:101
 }
-.field-group input:focus, .field-group select:focus { border-color: var(--accent); }
-.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.result-table { background: rgba(0,0,0,0.3); border-radius: 8px; overflow: hidden; }
-.result-row { display: flex; justify-content: space-between; padding: 5px 10px; font-size: 11px; border-bottom: 1px solid rgba(255,255,255,0.04); }
-.result-row:last-child { border-bottom: none; }
-.result-row .label { color: var(--muted); }
-.result-row .val { font-weight: 600; color: var(--text); }
-.result-row .val.pos { color: var(--green); }
-.result-row .val.neg { color: var(--red); }
-.section-title { font-size: 11px; font-weight: 700; color: var(--accent2); text-transform: uppercase; letter-spacing: .5px; }
-.tag-row { display: flex; gap: 4px; flex-wrap: wrap; }
-.tag { font-size: 10px; padding: 2px 6px; border-radius: 8px; background: rgba(129,140,248,0.15); color: var(--accent2); }
-.tag.green { background: rgba(52,211,153,0.15); color: var(--green); }
-.tag.red { background: rgba(251,113,133,0.15); color: var(--red); }
-.nbhd-card {
-  background: rgba(0,0,0,0.3); border: 1px solid var(--border);
-  border-radius: 8px; padding: 10px; cursor: pointer; transition: all .2s;
+#panel-collapse:hover{color:var(--c-accent)}
+.panel-scroll{flex:1;overflow-y:auto;padding:12px}
+.panel-section{display:none;flex-direction:column;gap:10px}
+.panel-section.active{display:flex}
+.p-title{font-size:11px;font-weight:700;color:var(--c-accent2);text-transform:uppercase;
+  letter-spacing:.6px;padding:2px 0}
+.p-subtitle{font-size:10px;color:var(--c-muted)}
+
+/* ── INSPECTOR (Right Panel) ──────────────────────────────────────────────── */
+#panel-right{
+  position:fixed;right:0;top:var(--nav-h);bottom:var(--sb-h);width:var(--insp-w);
+  z-index:100;background:var(--c-panel);backdrop-filter:var(--blur);
+  border-left:1px solid var(--c-border);
+  display:flex;flex-direction:column;overflow:hidden;
+  transform:translateX(var(--insp-w));transition:transform .3s ease;
 }
-.nbhd-card:hover { border-color: var(--accent); background: rgba(56,189,248,0.06); }
-.nbhd-card.selected { border-color: var(--accent); box-shadow: 0 0 12px rgba(56,189,248,0.2); }
-.nbhd-name { font-size: 12px; font-weight: 700; color: var(--text); }
-.nbhd-sub { font-size: 10px; color: var(--muted); }
-.nbhd-score-bar { height: 3px; border-radius: 2px; margin-top: 6px; background: rgba(255,255,255,0.08); }
-.nbhd-score-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent2), var(--accent)); transition: width .6s ease; }
-.scan-card {
-  background: rgba(0,0,0,0.3); border: 1px solid var(--border);
-  border-radius: 8px; padding: 8px 10px; cursor: pointer; transition: all .15s;
-  display: flex; align-items: center; gap: 8px;
+#panel-right.open{transform:translateX(0)}
+#insp-close{
+  position:absolute;left:-14px;top:50%;transform:translateY(-50%);
+  width:14px;height:48px;background:var(--c-panel);border:1px solid var(--c-border);
+  border-right:none;border-radius:4px 0 0 4px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;color:var(--c-muted);font-size:9px;
 }
-.scan-card:hover { border-color: var(--accent); }
-.scan-rank { font-size: 18px; font-weight: 900; color: var(--border); min-width: 24px; }
-.scan-rank.r1 { color: #f59e0b; }
-.scan-rank.r2 { color: var(--muted); }
-.scan-rank.r3 { color: #92400e; }
-.scan-info { flex: 1; }
-.scan-addr { font-size: 11px; font-weight: 600; }
-.scan-meta { font-size: 10px; color: var(--muted); }
-.tab-bar { display: flex; border-bottom: 1px solid var(--border); }
-.tab {
-  flex: 1; padding: 8px 4px; font-size: 10px; font-weight: 600; text-align: center;
-  cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent;
-  transition: all .2s; text-transform: uppercase; letter-spacing: .3px;
+#insp-close:hover{color:var(--c-accent)}
+.insp-header{
+  padding:12px 14px 10px;border-bottom:1px solid var(--c-border);
+  display:flex;align-items:center;gap:8px;flex-shrink:0
 }
-.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-.tab-panel { display: none; padding: 12px 14px; flex-direction: column; gap: 10px; }
-.tab-panel.active { display: flex; }
-.serefiye-floor { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; }
-.serefiye-kat { font-size: 10px; color: var(--muted); min-width: 56px; }
-.serefiye-bar-wrap { flex: 1; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; }
-.serefiye-bar { height: 100%; border-radius: 3px; transition: width .5s; }
-.serefiye-price { font-size: 10px; font-weight: 600; min-width: 64px; text-align: right; }
-.scenario-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.scenario-table th { color: var(--muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--border); text-align: left; font-size: 10px; }
-.scenario-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,0.03); }
-.scenario-table tr:last-child td { border-bottom: none; }
-.scenario-table td.best { color: var(--green); font-weight: 700; }
-.scenario-table td.neg { color: var(--red); }
-#toast-container { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-.toast {
-  background: rgba(13,27,45,0.96); border: 1px solid var(--accent);
-  backdrop-filter: var(--blur); border-radius: 10px; padding: 10px 16px;
-  display: flex; align-items: center; gap: 10px; min-width: 240px;
-  animation: slideUp .35s ease, fadeOut .4s 2.6s ease forwards;
-  box-shadow: 0 0 20px rgba(56,189,248,0.25);
+.insp-title{font-size:13px;font-weight:700;color:var(--c-accent);flex:1;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.insp-body{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+
+/* ── FLOATING PANELS ─────────────────────────────────────────────────────── */
+.float-panel{
+  position:fixed;z-index:150;background:var(--c-panel2);backdrop-filter:var(--blur);
+  border:1px solid var(--c-border);border-radius:var(--r);
+  box-shadow:0 8px 32px rgba(0,0,0,.5);
+  display:none;flex-direction:column;overflow:hidden;min-width:200px
 }
-@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-@keyframes fadeOut { to { opacity: 0; transform: translateY(-10px); } }
-.toast-icon { font-size: 20px; }
-.toast-title { font-size: 12px; font-weight: 700; color: var(--accent); }
-.toast-sub { font-size: 10px; color: var(--muted); }
-#radar-bar {
-  position: fixed; bottom: 0; left: 0; right: 0; height: 44px; z-index: 90;
-  background: rgba(6,14,26,0.92); backdrop-filter: var(--blur);
-  border-top: 1px solid var(--border);
-  display: flex; align-items: center; gap: 16px; padding: 0 16px;
-  font-size: 11px; color: var(--muted);
+.float-panel.open{display:flex}
+.fp-header{
+  padding:10px 12px;font-size:11px;font-weight:700;color:var(--c-accent);
+  border-bottom:1px solid var(--c-border);display:flex;justify-content:space-between;
+  align-items:center;flex-shrink:0
 }
-#radar-bar b { color: var(--text); }
-.maplibregl-popup-content {
-  background: rgba(13,27,45,0.96) !important; border: 1px solid var(--border) !important;
-  border-radius: 8px !important; padding: 10px 12px !important; color: var(--text) !important;
-  font-size: 11px !important; min-width: 160px;
+.fp-close{cursor:pointer;color:var(--c-muted);font-size:14px;line-height:1}
+.fp-close:hover{color:var(--c-red)}
+.fp-body{padding:10px 12px;display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto}
+#layers-panel{top:58px;left:calc(var(--panel-w) + 16px)}
+#style-panel{top:58px;right:16px;min-width:160px}
+#draw-toolbar{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--sb-h) + 12px);
+  z-index:150;background:var(--c-panel2);backdrop-filter:var(--blur);
+  border:1px solid var(--c-border2);border-radius:24px;
+  display:none;align-items:center;gap:4px;padding:6px 10px;
+  box-shadow:0 4px 20px rgba(56,189,248,.15)
 }
-.popup-title { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
-.popup-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
-.popup-row span { color: var(--muted); }
-input[type=range] { width: 100%; accent-color: var(--accent); }
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.3); border-radius: 2px; }
-@media (max-width: 640px) {
-  #hud-left { width: 200px; }
-  #hud-right { width: calc(100vw - 24px); right: 12px; }
-  .mode-btn span { display: none; }
+#draw-toolbar.active{display:flex}
+.draw-btn{
+  padding:5px 12px;border-radius:16px;border:1px solid var(--c-border);
+  background:transparent;color:var(--c-text2);font-size:11px;font-weight:600;
+  cursor:pointer;transition:var(--trans);display:flex;align-items:center;gap:5px
+}
+.draw-btn:hover{border-color:var(--c-accent);color:var(--c-accent)}
+.draw-btn.active{background:var(--c-accent);color:#000;border-color:var(--c-accent)}
+.draw-btn.danger{border-color:rgba(239,68,68,.4)}
+.draw-btn.danger:hover{background:var(--c-red);color:#fff;border-color:var(--c-red)}
+
+/* ── STATUS BAR ─────────────────────────────────────────────────────────── */
+#status-bar{
+  position:fixed;bottom:0;left:0;right:0;height:var(--sb-h);z-index:200;
+  background:var(--c-panel2);backdrop-filter:var(--blur);
+  border-top:1px solid var(--c-border);
+  display:flex;align-items:center;gap:16px;padding:0 14px;font-size:11px;
+  color:var(--c-muted);
+}
+#sb-coords{font-family:'JetBrains Mono',monospace,sans-serif;font-size:10px;
+  color:var(--c-text2);min-width:140px}
+#sb-draw-hint{color:var(--c-yellow);font-weight:600;display:none}
+#sb-feats{margin-left:auto}
+#sb-disclaimer{font-size:9px;color:rgba(255,255,255,.12)}
+
+/* ── FORM COMPONENTS ─────────────────────────────────────────────────────── */
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg label{font-size:10px;color:var(--c-muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.fg input,.fg select,.fg textarea{
+  background:rgba(255,255,255,.04);border:1px solid var(--c-border);
+  border-radius:var(--r-sm);color:var(--c-text);font-size:12px;
+  padding:6px 8px;outline:none;transition:var(--trans);width:100%
+}
+.fg input:focus,.fg select:focus{border-color:var(--c-accent);background:rgba(56,189,248,.04)}
+.fg input[type=range]{padding:4px 0;accent-color:var(--c-accent)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.btn{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:7px 14px;border-radius:var(--r-sm);border:1px solid var(--c-border);
+  background:rgba(56,189,248,.08);color:var(--c-accent);font-size:11px;font-weight:700;
+  cursor:pointer;transition:var(--trans);text-align:center;letter-spacing:.3px
+}
+.btn:hover{background:rgba(56,189,248,.18)}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--c-accent);color:#000;border-color:var(--c-accent)}
+.btn.primary:hover{background:#7dd3fc}
+.btn.sm{padding:4px 10px;font-size:10px}
+.btn.success{background:var(--c-green);color:#fff;border-color:var(--c-green)}
+.btn.warning{background:var(--c-yellow);color:#000;border-color:var(--c-yellow)}
+.btn.danger{background:var(--c-red);color:#fff;border-color:var(--c-red)}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap}
+.divider{height:1px;background:var(--c-border);flex-shrink:0}
+
+/* ── DATA DISPLAY ─────────────────────────────────────────────────────────── */
+.kv-table{background:rgba(0,0,0,.3);border-radius:var(--r-sm);overflow:hidden}
+.kv-row{display:flex;justify-content:space-between;align-items:center;
+  padding:5px 10px;font-size:11px;border-bottom:1px solid rgba(255,255,255,.03)}
+.kv-row:last-child{border-bottom:none}
+.kv-row .k{color:var(--c-muted)}
+.kv-row .v{font-weight:600;color:var(--c-text);text-align:right;max-width:55%}
+.kv-row .v.pos{color:var(--c-green)}
+.kv-row .v.neg{color:var(--c-red)}
+.kv-row .v.warn{color:var(--c-yellow)}
+.tag-wrap{display:flex;gap:4px;flex-wrap:wrap}
+.tag{
+  font-size:10px;font-weight:600;padding:2px 7px;border-radius:8px;
+  background:rgba(129,140,248,.12);color:var(--c-accent2);
+  border:1px solid rgba(129,140,248,.2)
+}
+.tag.green{background:rgba(16,185,129,.12);color:var(--c-green);border-color:rgba(16,185,129,.25)}
+.tag.red{background:rgba(239,68,68,.12);color:var(--c-red);border-color:rgba(239,68,68,.25)}
+.tag.yellow{background:rgba(245,158,11,.12);color:var(--c-yellow);border-color:rgba(245,158,11,.25)}
+.tag.cyan{background:rgba(56,189,248,.12);color:var(--c-accent);border-color:rgba(56,189,248,.25)}
+.note-box{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);
+  border-radius:var(--r-sm);padding:8px 10px;font-size:10px;color:var(--c-yellow);line-height:1.5}
+
+/* ── GAUGE ────────────────────────────────────────────────────────────────── */
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 0}
+.gauge-svg{width:120px;height:90px}
+.gauge-val{font-size:20px;font-weight:800;color:var(--c-accent);text-align:center;
+  line-height:1;font-family:'JetBrains Mono',monospace,sans-serif}
+.gauge-sub{font-size:9px;color:var(--c-muted);text-align:center;text-transform:uppercase;letter-spacing:.5px}
+
+/* ── SCORE BADGE ──────────────────────────────────────────────────────────── */
+.score-badge{
+  display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;
+  padding:3px 9px;border-radius:10px;border:1px solid var(--c-border);
+  background:rgba(56,189,248,.1);color:var(--c-accent)
+}
+.score-badge.s-red{background:rgba(239,68,68,.12);color:var(--c-red);border-color:rgba(239,68,68,.3)}
+.score-badge.s-yellow{background:rgba(245,158,11,.12);color:var(--c-yellow);border-color:rgba(245,158,11,.3)}
+.score-badge.s-green{background:rgba(16,185,129,.12);color:var(--c-green);border-color:rgba(16,185,129,.3)}
+.score-badge.s-gold{
+  background:rgba(245,158,11,.2);color:#f59e0b;border-color:rgba(245,158,11,.5);
+  animation:goldPulse 2s ease-in-out infinite
+}
+@keyframes goldPulse{0%,100%{box-shadow:none}50%{box-shadow:0 0 14px 2px rgba(245,158,11,.4)}}
+
+/* ── CARDS ────────────────────────────────────────────────────────────────── */
+.card{
+  background:rgba(0,0,0,.25);border:1px solid var(--c-border);
+  border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;
+  transition:var(--trans)
+}
+.card:hover{border-color:var(--c-border2);background:rgba(56,189,248,.04)}
+.card.selected{border-color:var(--c-accent);box-shadow:0 0 12px rgba(56,189,248,.15)}
+.card-title{font-size:12px;font-weight:700;color:var(--c-text)}
+.card-sub{font-size:10px;color:var(--c-muted);margin-top:2px}
+.score-bar{height:3px;border-radius:2px;margin-top:8px;background:rgba(255,255,255,.07)}
+.score-fill{height:100%;border-radius:2px;
+  background:linear-gradient(90deg,var(--c-accent2),var(--c-accent));transition:width .6s}
+.rank-badge{font-size:16px;font-weight:900;min-width:22px;color:var(--c-muted)}
+.rank-badge.r1{color:#f59e0b}
+.rank-badge.r2{color:#94a3b8}
+.rank-badge.r3{color:#78350f}
+
+/* ── TABS ─────────────────────────────────────────────────────────────────── */
+.tab-bar{display:flex;border-bottom:1px solid var(--c-border);flex-shrink:0}
+.tab{
+  flex:1;padding:7px 4px;font-size:10px;font-weight:700;text-align:center;
+  cursor:pointer;color:var(--c-muted);border-bottom:2px solid transparent;
+  transition:var(--trans);text-transform:uppercase;letter-spacing:.3px
+}
+.tab.active{color:var(--c-accent);border-bottom-color:var(--c-accent)}
+.tab-content{display:none;flex-direction:column;gap:10px;padding:12px}
+.tab-content.active{display:flex}
+
+/* ── LAYER CONTROL ────────────────────────────────────────────────────────── */
+.layer-item{
+  display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer
+}
+.layer-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.layer-label{flex:1;font-size:11px;color:var(--c-text2)}
+.layer-toggle{
+  width:32px;height:17px;border-radius:8px;background:rgba(255,255,255,.1);
+  position:relative;cursor:pointer;transition:background .2s;flex-shrink:0
+}
+.layer-toggle.on{background:var(--c-accent)}
+.layer-toggle::after{
+  content:'';position:absolute;top:2px;left:2px;width:13px;height:13px;
+  border-radius:50%;background:#fff;transition:left .2s;
+}
+.layer-toggle.on::after{left:17px}
+.style-btn{
+  padding:6px 10px;border-radius:var(--r-sm);border:1px solid var(--c-border);
+  background:transparent;color:var(--c-text2);font-size:11px;cursor:pointer;
+  transition:var(--trans);text-align:left;display:flex;align-items:center;gap:8px
+}
+.style-btn:hover,.style-btn.active{border-color:var(--c-accent);color:var(--c-accent);background:rgba(56,189,248,.06)}
+
+/* ── SEREFIYE CHART ───────────────────────────────────────────────────────── */
+.serefiye-bld{
+  display:flex;flex-direction:column-reverse;gap:1px;padding:8px;
+  background:rgba(0,0,0,.3);border-radius:var(--r-sm);
+}
+.serefiye-floor-row{
+  display:flex;align-items:center;gap:8px;padding:3px 4px;border-radius:3px;
+  transition:background .15s;cursor:default
+}
+.serefiye-floor-row:hover{background:rgba(255,255,255,.04)}
+.sf-label{font-size:9px;color:var(--c-muted);min-width:52px}
+.sf-bar-wrap{flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px}
+.sf-bar{height:100%;border-radius:3px;transition:width .5s}
+.sf-price{font-size:9px;font-weight:700;min-width:58px;text-align:right}
+
+/* ── SCENARIO CHART ───────────────────────────────────────────────────────── */
+.scenario-wrap{overflow-x:auto}
+table.sc-table{width:100%;border-collapse:collapse;font-size:10px;white-space:nowrap}
+.sc-table th{color:var(--c-muted);font-weight:600;padding:5px 8px;
+  border-bottom:1px solid var(--c-border);text-align:left}
+.sc-table td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.025)}
+.sc-table tr:last-child td{border:none}
+.sc-table td.best{color:var(--c-green);font-weight:800}
+.sc-table td.neg{color:var(--c-red)}
+.sc-bar-cell{padding:5px 8px}
+.sc-bar-bg{background:rgba(255,255,255,.06);border-radius:3px;height:6px;min-width:60px}
+.sc-bar-fill{height:100%;border-radius:3px;transition:width .4s}
+
+/* ── 6306 Nisap ──────────────────────────────────────────────────────────── */
+.nisap-vis{display:flex;flex-direction:column;gap:4px}
+.nisap-bar-row{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--c-muted)}
+.nisap-bar-bg{flex:1;height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+.nisap-bar-fill{height:100%;border-radius:4px;transition:width .6s}
+.nisap-pct{font-weight:700;min-width:28px;text-align:right}
+
+/* ── ACHIEVEMENT ─────────────────────────────────────────────────────────── */
+.badge-row{display:flex;gap:4px;flex-wrap:wrap}
+.badge{font-size:16px;opacity:.25;cursor:default;transition:opacity .3s;
+  filter:grayscale(1)}
+.badge.earned{opacity:1;filter:none}
+.badge:hover::after{
+  content:attr(title);position:absolute;bottom:100%;left:50%;
+  transform:translateX(-50%);background:var(--c-panel2);border:1px solid var(--c-border);
+  color:var(--c-text);font-size:10px;white-space:nowrap;padding:3px 7px;
+  border-radius:4px;pointer-events:none;margin-bottom:4px
+}
+
+/* ── TOAST ────────────────────────────────────────────────────────────────── */
+#toast-wrap{position:fixed;bottom:calc(var(--sb-h) + 12px);left:50%;
+  transform:translateX(-50%);z-index:500;display:flex;flex-direction:column;
+  gap:6px;pointer-events:none;align-items:center}
+.toast{
+  background:var(--c-panel2);border:1px solid var(--c-border2);
+  backdrop-filter:var(--blur);border-radius:var(--r);padding:9px 16px;
+  display:flex;align-items:center;gap:10px;min-width:220px;max-width:340px;
+  animation:toastIn .3s ease,toastOut .4s 2.6s ease forwards;
+  box-shadow:0 4px 20px rgba(0,0,0,.5)
+}
+.toast.toast-err{border-color:rgba(239,68,68,.4)}
+@keyframes toastIn{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+@keyframes toastOut{to{transform:translateY(-8px);opacity:0}}
+.toast-icon{font-size:18px;flex-shrink:0}
+.toast-body{flex:1}
+.toast-title{font-size:11px;font-weight:700;color:var(--c-accent)}
+.toast-sub{font-size:10px;color:var(--c-muted);line-height:1.3}
+.toast.toast-err .toast-title{color:var(--c-red)}
+
+/* ── LOADING ─────────────────────────────────────────────────────────────── */
+.spinner{
+  width:16px;height:16px;border:2px solid rgba(56,189,248,.2);
+  border-top-color:var(--c-accent);border-radius:50%;animation:spin .7s linear infinite
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-overlay{
+  position:absolute;inset:0;background:rgba(5,13,26,.6);backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);
+  z-index:10
+}
+.skeleton{
+  background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.04) 100%);
+  background-size:200% 100%;animation:shimmer 1.4s ease-in-out infinite;border-radius:4px;
+}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ── MAP POPUP ────────────────────────────────────────────────────────────── */
+.maplibregl-popup-content{
+  background:rgba(8,18,36,.96) !important;border:1px solid var(--c-border2) !important;
+  border-radius:var(--r) !important;padding:10px 12px !important;
+  color:var(--c-text) !important;font-size:11px !important;min-width:150px;
+  box-shadow:0 4px 20px rgba(0,0,0,.6) !important
+}
+.maplibregl-popup-tip{display:none !important}
+.pu-title{font-size:12px;font-weight:700;color:var(--c-accent);margin-bottom:7px}
+.pu-row{display:flex;justify-content:space-between;gap:12px;padding:2px 0}
+.pu-row span{color:var(--c-muted)}
+.pu-row b{color:var(--c-text)}
+
+/* ── MAPLIBRE OVERRIDES ───────────────────────────────────────────────────── */
+.maplibregl-ctrl-bottom-right{bottom:calc(var(--sb-h) + 8px) !important;right:12px !important}
+.maplibregl-ctrl-group{background:var(--c-panel2) !important;border:1px solid var(--c-border) !important}
+.maplibregl-ctrl-group button{background:transparent !important;color:var(--c-muted) !important}
+.maplibregl-ctrl-group button:hover{background:rgba(56,189,248,.1) !important}
+.maplibregl-scale{background:rgba(8,18,36,.7) !important;border-color:var(--c-muted) !important;
+  color:var(--c-muted) !important;font-size:9px !important}
+
+/* ── SCROLLBAR ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(56,189,248,.25);border-radius:2px}
+
+/* ── RESPONSIVE ────────────────────────────────────────────────────────────── */
+@media(max-width:768px){
+  :root{--panel-w:100vw;--insp-w:100vw}
+  #panel-left:not(.collapsed){transform:none}
+  .mode-tab span{display:none}
 }
 </style>
 </head>
 <body>
+
+<!-- Map -->
 <div id="map"></div>
 
-<div id="top-bar">
-  <div id="logo">KentselSim <span>⬡</span></div>
-  <button class="mode-btn active" data-mode="radar">📡 <span>RADAR</span></button>
-  <button class="mode-btn" data-mode="kesif">🔍 <span>KEŞİF</span></button>
-  <button class="mode-btn" data-mode="proje">🏗 <span>PROJE</span></button>
-  <button class="mode-btn" data-mode="uzman">🧠 <span>UZMAN</span></button>
-  <div id="api-dot" title="API durumu"></div>
-  <div id="api-label">API</div>
-</div>
-
-<div id="hud-left">
-  <div class="gauge-wrap">
-    <svg id="gauge-svg" viewBox="0 0 100 70">
-      <circle cx="50" cy="55" r="40" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"
-        stroke-dasharray="188.5 62.83" stroke-linecap="round" transform="rotate(-225 50 55)"/>
-      <circle id="gauge-arc" cx="50" cy="55" r="40" fill="none" stroke="var(--accent)" stroke-width="8"
-        stroke-dasharray="0 251.33" stroke-linecap="round" transform="rotate(-225 50 55)"
-        style="transition: stroke-dasharray .6s ease, stroke .4s;"/>
-      <text x="50" y="50" text-anchor="middle" fill="var(--muted)" font-size="7" font-family="sans-serif">K ENDEKSİ</text>
+<!-- Navbar -->
+<header id="nav">
+  <div id="logo">
+    <svg viewBox="0 0 22 22" fill="none">
+      <polygon points="11,2 20,7 20,15 11,20 2,15 2,7" stroke="#38bdf8" stroke-width="1.5" fill="rgba(56,189,248,.1)"/>
+      <polygon points="11,6 16,9 16,14 11,17 6,14 6,9" fill="rgba(56,189,248,.25)"/>
     </svg>
-    <div id="gauge-value" data-val="0">—</div>
-    <div id="gauge-label">TL/yıl kârlılık endeksi</div>
+    KentselSim
   </div>
-  <div class="divider"></div>
-  <div class="score-row">
-    <span style="font-size:11px;color:var(--muted)">Fırsat Skoru</span>
-    <span id="opp-badge" class="score-badge">—</span>
-  </div>
-  <div class="kpi-row"><span>Yeni Daire</span><span id="kpi-units" class="kpi-val">—</span></div>
-  <div class="kpi-row"><span>Hak Sahibi</span><span id="kpi-owners" class="kpi-val">—</span></div>
-  <div class="kpi-row"><span>6306 Nisap</span><span id="kpi-risk" class="kpi-val">—</span></div>
-  <div class="divider"></div>
-  <button class="hud-btn primary" id="btn-action">Taramayı Başlat</button>
-  <button class="hud-btn" id="btn-yarisibizden" style="display:none">⚡ Yarısı Bizden Detayı</button>
-  <div class="divider"></div>
-  <div style="font-size:10px;color:var(--muted);margin-bottom:2px">BAŞARILAR</div>
-  <div id="badge-row">
-    <span class="badge-chip" data-id="super-getiri" title="Süper Getiri">⚡</span>
-    <span class="badge-chip" data-id="mega-proje" title="Mega Proje">🏗</span>
-    <span class="badge-chip" data-id="toplumcu" title="Toplumcu Proje">👥</span>
-    <span class="badge-chip" data-id="yarisi-uzman" title="Yarısı Bizden Uzmanı">💰</span>
-    <span class="badge-chip" data-id="altin-firsat" title="Altın Fırsat">🏆</span>
-  </div>
-</div>
 
-<div id="hud-right">
-  <div id="panel-radar">
-    <div class="panel-header">📡 Fırsat Radarı</div>
-    <div class="panel-body">
-      <div class="section-title">En İyi 5 Fırsat</div>
-      <div id="scan-list" style="display:flex;flex-direction:column;gap:6px"></div>
-      <div class="section-title" style="margin-top:4px">Harita Katmanları</div>
-      <div class="tag-row">
-        <span class="tag" id="layer-heatmap" style="cursor:pointer" onclick="toggleLayer('heatmap')">✓ Isı Haritası</span>
-        <span class="tag" id="layer-parcels" style="cursor:pointer;opacity:.5" onclick="toggleLayer('parcels')">Parseller</span>
+  <button class="mode-tab active" data-mode="radar">
+    <svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><circle cx="7" cy="7" r="2.5" fill="currentColor" opacity=".4"/><line x1="7" y1="1.5" x2="7" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <span>Radar</span>
+  </button>
+  <button class="mode-tab" data-mode="kesif">
+    <svg viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.2"/><line x1="9.5" y1="9.5" x2="12.5" y2="12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <span>Keşif</span>
+  </button>
+  <button class="mode-tab" data-mode="proje">
+    <svg viewBox="0 0 14 14" fill="none"><rect x="2" y="6" width="4" height="6" stroke="currentColor" stroke-width="1.2"/><rect x="5" y="3" width="4" height="9" stroke="currentColor" stroke-width="1.2"/><rect x="8" y="5" width="4" height="7" stroke="currentColor" stroke-width="1.2"/></svg>
+    <span>Proje</span>
+  </button>
+  <button class="mode-tab" data-mode="uzman">
+    <svg viewBox="0 0 14 14" fill="none"><path d="M7 2L12 5V9L7 12L2 9V5L7 2Z" stroke="currentColor" stroke-width="1.2"/><path d="M7 2V12M2 5L12 9M12 5L2 9" stroke="currentColor" stroke-width="1" opacity=".4"/></svg>
+    <span>Uzman</span>
+  </button>
+
+  <div class="nav-sep"></div>
+
+  <div id="geocode-wrap">
+    <input id="geocode-input" placeholder="Mahalle veya ilçe ara..."/>
+  </div>
+  <button class="nav-tool" id="btn-geocode" data-tooltip="Yer Ara (G)" onclick="toggleGeocode()">🔎</button>
+  <button class="nav-tool" id="btn-draw" data-tooltip="Parsel Çiz (D)" onclick="toggleDraw()">✏️</button>
+  <button class="nav-tool" id="btn-osm" data-tooltip="OSM Bina Yükle (O)" onclick="loadOsmAtCenter()">🏢</button>
+  <button class="nav-tool" id="btn-layers" data-tooltip="Katmanlar (L)" onclick="togglePanel('layers')">☰</button>
+  <button class="nav-tool" id="btn-style" data-tooltip="Harita Stili (S)" onclick="togglePanel('style')">🗺️</button>
+  <button class="nav-tool" id="btn-export" data-tooltip="Dışa Aktar" onclick="exportGeoJSON()">⬇️</button>
+
+  <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+    <div id="api-dot" title="API"></div>
+    <div id="api-ver">v1.1</div>
+  </div>
+</header>
+
+<!-- Left Panel -->
+<aside id="panel-left">
+  <div id="panel-collapse" onclick="document.getElementById('panel-left').classList.toggle('collapsed')">›</div>
+  <div class="panel-scroll">
+
+    <!-- RADAR -->
+    <div class="panel-section active" id="ps-radar">
+      <div class="p-title">📡 Fırsat Radarı</div>
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" viewBox="0 0 120 90">
+          <circle cx="60" cy="66" r="48" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="9"
+            stroke-dasharray="226.2 75.4" stroke-linecap="round" transform="rotate(-225 60 66)"/>
+          <circle id="gauge-arc" cx="60" cy="66" r="48" fill="none" stroke="#38bdf8" stroke-width="9"
+            stroke-dasharray="0 301.6" stroke-linecap="round" transform="rotate(-225 60 66)"
+            style="transition:stroke-dasharray .7s,stroke .4s"/>
+          <text x="60" y="62" text-anchor="middle" fill="#64748b" font-size="7.5" font-family="sans-serif">K ENDEKSİ</text>
+        </svg>
+        <div id="gauge-val" data-raw="0">—</div>
+        <div class="gauge-sub">TL/yıl kârlılık endeksi</div>
+      </div>
+      <div class="divider"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:11px;color:var(--c-muted)">Fırsat Skoru</span>
+        <span id="opp-score" class="score-badge">—</span>
+      </div>
+      <div class="kv-table" id="radar-kpi">
+        <div class="kv-row"><span class="k">Toplam Parsel</span><span class="v" id="kpi-total">—</span></div>
+        <div class="kv-row"><span class="k">Ort. Skor</span><span class="v" id="kpi-avg">—</span></div>
+        <div class="kv-row"><span class="k">Yeni Daire</span><span class="v" id="kpi-units">—</span></div>
+        <div class="kv-row"><span class="k">6306 Nisap</span><span class="v" id="kpi-nisap">—</span></div>
+      </div>
+      <div class="divider"></div>
+      <div class="p-title" style="margin-top:2px">En İyi 5 Fırsat</div>
+      <div id="radar-list" style="display:flex;flex-direction:column;gap:5px"></div>
+      <div class="divider"></div>
+      <div class="p-title">Başarılar</div>
+      <div class="badge-row" id="badge-row">
+        <span class="badge" data-id="super-getiri" title="Süper Getiri: K>20M">⚡</span>
+        <span class="badge" data-id="mega-proje" title="Mega Proje: 15+ kat">🏗️</span>
+        <span class="badge" data-id="toplumcu" title="Toplumcu: 20+ hak sahibi">👥</span>
+        <span class="badge" data-id="yarisi-uzman" title="Yarısı Bizden Uzmanı">💰</span>
+        <span class="badge" data-id="altin-firsat" title="Altın Fırsat: Skor 86+">🏆</span>
       </div>
     </div>
-  </div>
 
-  <div id="panel-kesif" style="display:none">
-    <div class="panel-header">🔍 Yatırımcı Keşif Modu</div>
-    <div class="panel-body">
-      <div class="field-group"><label>Bütçe (TL)</label><input id="k-budget" type="number" value="6000000" step="500000"/></div>
-      <div class="field-row">
-        <div class="field-group"><label>Amaç</label>
-          <select id="k-intent"><option value="investment">Yatırım</option><option value="residence">Oturma</option><option value="mixed">Karma</option></select>
+    <!-- KEŞİF -->
+    <div class="panel-section" id="ps-kesif">
+      <div class="p-title">🔍 Yatırımcı Keşif Modu</div>
+      <div class="p-subtitle">Bütçe ve tercihlerinize göre mahalle fırsat analizi</div>
+      <div class="fg"><label>Bütçe (TL)</label><input id="k-budget" type="number" value="6000000" step="500000"/></div>
+      <div class="row2">
+        <div class="fg"><label>Amaç</label>
+          <select id="k-intent">
+            <option value="investment">Yatırım</option>
+            <option value="living">Oturma</option>
+          </select>
         </div>
-        <div class="field-group"><label>Risk (1-5)</label><input id="k-risk" type="number" value="3" min="1" max="5"/></div>
+        <div class="fg"><label>Risk (1-5)</label><input id="k-risk" type="number" value="3" min="1" max="5"/></div>
       </div>
-      <div class="field-row">
-        <div class="field-group"><label>Min Dönüşüm %</label><input id="k-pot" type="number" value="55"/></div>
-        <div class="field-group"><label>Min m²/Daire</label><input id="k-m2" type="number" value="80"/></div>
+      <div class="row2">
+        <div class="fg"><label>Min. Dönüşüm %</label><input id="k-pot" type="number" value="55" min="0" max="100"/></div>
+        <div class="fg"><label>Min. m²/Daire</label><input id="k-m2" type="number" value="80"/></div>
       </div>
-      <button class="hud-btn primary" onclick="loadKesif()">Mahalleleri Keşfet</button>
+      <button class="btn primary" onclick="loadKesif()">
+        <span class="spinner" id="sp-kesif" style="display:none"></span>
+        Mahalleleri Keşfet
+      </button>
       <div id="nbhd-list" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
-  </div>
 
-  <div id="panel-proje" style="display:none">
-    <div class="panel-header">🏗 Proje Analizi</div>
-    <div class="panel-body">
-      <div class="section-title">Parsel</div>
-      <div class="field-row">
-        <div class="field-group"><label>Parsel m²</label><input id="p-parcel" type="number" value="1000"/></div>
-        <div class="field-group"><label>Mevcut Taban m²</label><input id="p-footprint" type="number" value="250"/></div>
+    <!-- PROJE -->
+    <div class="panel-section" id="ps-proje">
+      <div class="p-title">🏗️ Proje Analizi</div>
+      <div class="btn-row">
+        <button class="btn sm" id="btn-draw-parcel" onclick="toggleDraw()" style="flex:1">
+          ✏️ Parsel Çiz
+        </button>
+        <button class="btn sm" id="btn-load-osm" onclick="loadOsmAtCenter()" style="flex:1">
+          🏢 OSM Yükle
+        </button>
       </div>
-      <div class="field-row">
-        <div class="field-group"><label>Mevcut Kat</label><input id="p-floors" type="number" value="4"/></div>
-        <div class="field-group"><label>Mevcut Daire</label><input id="p-units" type="number" value="20"/></div>
+      <div class="divider"></div>
+      <div class="p-title">Parsel</div>
+      <div class="row2">
+        <div class="fg"><label>Alan m²</label><input id="p-parcel" type="number" value="1000"/></div>
+        <div class="fg"><label>Mevcut Taban m²</label><input id="p-footprint" type="number" value="250"/></div>
       </div>
-      <div class="field-row">
-        <div class="field-group"><label>Malik Sayısı</label><input id="p-owners" type="number" value="20"/></div>
-        <div class="field-group"><label>Nüfus</label><input id="p-pop" type="number" value="60"/></div>
+      <div class="row3">
+        <div class="fg"><label>Mevcut Kat</label><input id="p-floors" type="number" value="4"/></div>
+        <div class="fg"><label>Daire</label><input id="p-units" type="number" value="20"/></div>
+        <div class="fg"><label>Malik</label><input id="p-owners" type="number" value="20"/></div>
       </div>
-      <div class="section-title">Hedef İmar</div>
-      <div class="field-row">
-        <div class="field-group"><label>TAKS</label><input id="p-taks" type="number" value="0.30" step="0.05"/></div>
-        <div class="field-group"><label>KAKS</label><input id="p-kaks" type="number" value="2.10" step="0.10"/></div>
+      <div class="row2">
+        <div class="fg"><label>Nüfus</label><input id="p-pop" type="number" value="60"/></div>
+        <div class="fg"><label>Ruhsat</label>
+          <div style="display:flex;gap:4px">
+            <input id="p-year" type="number" value="2025" style="width:60px"/>
+            <input id="p-month" type="number" value="6" min="1" max="12" style="width:42px"/>
+          </div>
+        </div>
       </div>
-      <div class="section-title">3B Kat Simülatörü</div>
-      <div class="field-group">
-        <label>Hedef Kat: <span id="floor-slider-val">7</span></label>
+      <div class="divider"></div>
+      <div class="p-title">Hedef İmar</div>
+      <div class="row2">
+        <div class="fg"><label>TAKS</label><input id="p-taks" type="number" value="0.30" step="0.05"/></div>
+        <div class="fg"><label>KAKS</label><input id="p-kaks" type="number" value="2.10" step="0.10" readonly style="opacity:.6"/></div>
+      </div>
+      <div class="fg">
+        <label>3B Kat Simülatörü: <strong id="floor-disp" style="color:var(--c-accent)">7</strong> kat</label>
         <input id="floor-slider" type="range" min="2" max="20" value="7" oninput="onFloorSlider(this.value)"/>
       </div>
-      <div class="section-title">Maliyet & Fiyat</div>
-      <div class="field-row">
-        <div class="field-group"><label>İnşaat TL/m²</label><input id="p-cost" type="number" value="25000"/></div>
-        <div class="field-group"><label>Satış TL/m²</label><input id="p-price" type="number" value="75000"/></div>
+      <div class="divider"></div>
+      <div class="p-title">Maliyet & Fiyat</div>
+      <div class="row2">
+        <div class="fg"><label>İnşaat TL/m²</label><input id="p-cost" type="number" value="25000"/></div>
+        <div class="fg"><label>Satış TL/m²</label><input id="p-price" type="number" value="75000"/></div>
       </div>
-      <div class="field-row">
-        <div class="field-group"><label>Ruhsat Yılı</label><input id="p-year" type="number" value="2025"/></div>
-        <div class="field-group"><label>Ruhsat Ayı</label><input id="p-month" type="number" value="6" min="1" max="12"/></div>
+      <div class="row2">
+        <div class="fg"><label>Rayiç TL/m² (opsiyonel)</label><input id="p-rayic" type="number" placeholder="Boş=otomatik"/></div>
+        <div class="fg"><label>Proje Süresi (yıl)</label><input id="p-dur" type="number" value="2.0" step="0.5"/></div>
       </div>
-      <button class="hud-btn primary" onclick="runCalculate()">Hesapla ▶</button>
+      <button class="btn primary" onclick="runCalc()">
+        <span class="spinner" id="sp-calc" style="display:none"></span>
+        Hesapla ▶
+      </button>
       <div id="proje-result" style="display:none;flex-direction:column;gap:8px">
-        <div class="section-title">Sonuçlar</div>
-        <div id="proje-result-table" class="result-table"></div>
-        <div id="proje-tags" class="tag-row"></div>
-        <div id="proje-notes" style="font-size:10px;color:var(--yellow);line-height:1.4"></div>
+        <div class="divider"></div>
+        <div class="p-title">Sonuçlar</div>
+        <div id="calc-result-table" class="kv-table"></div>
+        <div id="calc-tags" class="tag-wrap"></div>
+        <div id="calc-notes" class="note-box" style="display:none"></div>
+        <button class="btn sm" id="btn-yb" style="display:none;background:rgba(245,158,11,.1);color:var(--c-yellow);border-color:rgba(245,158,11,.3)" onclick="openYarisiTab()">
+          ⚡ Yarısı Bizden Detayları
+        </button>
       </div>
     </div>
-  </div>
 
-  <div id="panel-uzman" style="display:none">
-    <div class="panel-header">🧠 Uzman Araçları</div>
-    <div class="tab-bar">
-      <div class="tab active" data-tab="senaryo" onclick="switchTab('senaryo')">Senaryo</div>
-      <div class="tab" data-tab="serefiye" onclick="switchTab('serefiye')">Şerefiye</div>
-      <div class="tab" data-tab="kanun" onclick="switchTab('kanun')">6306</div>
-      <div class="tab" data-tab="yarisi" onclick="switchTab('yarisi')">Yarısı Bizden</div>
-    </div>
-    <div id="tab-senaryo" class="tab-panel active">
-      <div class="field-group"><label>Karşılaştırılacak Kat Sayıları</label><input id="s-floors" value="4,6,8,10,12"/></div>
-      <button class="hud-btn primary" onclick="runScenario()">Senaryo Karşılaştır</button>
-      <div id="scenario-table-wrap"></div>
-    </div>
-    <div id="tab-serefiye" class="tab-panel">
-      <div class="field-row">
-        <div class="field-group"><label>Toplam Kat</label><input id="sr-floors" type="number" value="7"/></div>
-        <div class="field-group"><label>Daire m²</label><input id="sr-m2" type="number" value="100"/></div>
+    <!-- UZMAN -->
+    <div class="panel-section" id="ps-uzman">
+      <div class="p-title">🧠 Uzman Araçları</div>
+      <div class="tab-bar">
+        <div class="tab active" data-utab="senaryo" onclick="switchUTab('senaryo')">Senaryo</div>
+        <div class="tab" data-utab="serefiye" onclick="switchUTab('serefiye')">Şerefiye</div>
+        <div class="tab" data-utab="kanun" onclick="switchUTab('kanun')">6306</div>
+        <div class="tab" data-utab="yarisi" onclick="switchUTab('yarisi')">Yarısı Bizden</div>
       </div>
-      <div class="field-row">
-        <div class="field-group"><label>Satış TL/m²</label><input id="sr-price" type="number" value="75000"/></div>
-        <div class="field-group"><label>Üst Kat Prim %</label><input id="sr-prem" type="number" value="20"/></div>
+      <div id="utab-senaryo" class="tab-content active">
+        <div class="fg"><label>Karşılaştırılacak Kat Sayıları</label><input id="s-floors" value="4,6,8,10,12"/></div>
+        <button class="btn primary" onclick="runScenario()">
+          <span class="spinner" id="sp-scen" style="display:none"></span>
+          Senaryo Karşılaştır
+        </button>
+        <div id="scenario-out"></div>
       </div>
-      <button class="hud-btn primary" onclick="runSerefiye()">Şerefiye Hesapla</button>
-      <div id="serefiye-list" style="display:flex;flex-direction:column;gap:2px"></div>
+      <div id="utab-serefiye" class="tab-content">
+        <div class="row2">
+          <div class="fg"><label>Toplam Kat</label><input id="sr-floors" type="number" value="7"/></div>
+          <div class="fg"><label>Daire m²</label><input id="sr-m2" type="number" value="100"/></div>
+        </div>
+        <div class="row2">
+          <div class="fg"><label>Satış TL/m²</label><input id="sr-price" type="number" value="75000"/></div>
+          <div class="fg"><label>Üst Kat Prim %</label><input id="sr-prem" type="number" value="20"/></div>
+        </div>
+        <button class="btn primary" onclick="runSerefiye()">
+          <span class="spinner" id="sp-seref" style="display:none"></span>
+          Şerefiye Hesapla
+        </button>
+        <div id="serefiye-out"></div>
+      </div>
+      <div id="utab-kanun" class="tab-content">
+        <div id="kanun-out">
+          <div class="p-subtitle">PROJE modunda hesaplama yapın — 6306 nisap bilgileri buraya gelecek.</div>
+        </div>
+        <div class="divider"></div>
+        <div class="note-box">4 Şubat 2026 itibarıyla arsa payı salt çoğunluk (%50+1) yeterlidir.</div>
+      </div>
+      <div id="utab-yarisi" class="tab-content">
+        <div id="yarisi-out">
+          <div class="p-subtitle">PROJE modunda hesaplama yapın — Yarısı Bizden bilgileri buraya gelecek.</div>
+        </div>
+      </div>
     </div>
-    <div id="tab-kanun" class="tab-panel">
-      <div id="kanun-info" class="result-table">
-        <div class="result-row"><span class="label">PROJE modunda hesaplama yapın</span></div>
-      </div>
-      <div id="kanun-detail"></div>
+
+  </div><!-- .panel-scroll -->
+</aside>
+
+<!-- Right Inspector Panel -->
+<aside id="panel-right">
+  <div id="insp-close" onclick="closeInspector()">‹</div>
+  <div class="insp-header">
+    <div id="insp-title" class="insp-title">Özellik Detayı</div>
+    <button class="btn sm" onclick="analyzeInspected()">Analiz Et</button>
+  </div>
+  <div class="insp-body">
+    <div id="insp-score-row" style="display:none;justify-content:space-between;align-items:center">
+      <span style="font-size:11px;color:var(--c-muted)">Fırsat Skoru</span>
+      <span id="insp-badge" class="score-badge">—</span>
     </div>
-    <div id="tab-yarisi" class="tab-panel">
-      <div id="yarisi-info" class="result-table">
-        <div class="result-row"><span class="label">PROJE modunda hesaplama yapın</span></div>
-      </div>
-      <div id="yarisi-detail"></div>
+    <div id="insp-props" class="kv-table"></div>
+    <div id="insp-tags" class="tag-wrap"></div>
+  </div>
+</aside>
+
+<!-- Layers Floating Panel -->
+<div class="float-panel" id="layers-panel">
+  <div class="fp-header">
+    Katmanlar
+    <span class="fp-close" onclick="togglePanel('layers')">✕</span>
+  </div>
+  <div class="fp-body">
+    <div class="p-subtitle" style="margin-bottom:4px">VERİ KATMANLARI</div>
+    <div class="layer-item" onclick="toggleLayer('heatmap')">
+      <div class="layer-dot" style="background:linear-gradient(135deg,#fb7185,#38bdf8)"></div>
+      <div class="layer-label">Isı Haritası</div>
+      <div class="layer-toggle on" id="lt-heatmap"></div>
+    </div>
+    <div class="layer-item" onclick="toggleLayer('scan-circles')">
+      <div class="layer-dot" style="background:#38bdf8"></div>
+      <div class="layer-label">Parsel Daireleri</div>
+      <div class="layer-toggle" id="lt-scan-circles"></div>
+    </div>
+    <div class="layer-item" onclick="toggleLayer('osm-bld')">
+      <div class="layer-dot" style="background:#818cf8"></div>
+      <div class="layer-label">OSM Binalar (3B)</div>
+      <div class="layer-toggle on" id="lt-osm-bld"></div>
+    </div>
+    <div class="layer-item" onclick="toggleLayer('opp-bld')">
+      <div class="layer-dot" style="background:#f59e0b"></div>
+      <div class="layer-label">Fırsat Binaları (3B)</div>
+      <div class="layer-toggle on" id="lt-opp-bld"></div>
+    </div>
+    <div class="layer-item" onclick="toggleLayer('sel-bld')">
+      <div class="layer-dot" style="background:#10b981"></div>
+      <div class="layer-label">Seçili/Çizilen Parsel</div>
+      <div class="layer-toggle on" id="lt-sel-bld"></div>
     </div>
   </div>
 </div>
 
-<div id="radar-bar">
-  <span>Tarama: <b id="rb-parcels">—</b> parsel</span>
-  <span>Ort Skor: <b id="rb-avgk">—</b></span>
-  <span>En İyi: <b id="rb-best">—</b></span>
-  <span style="margin-left:auto;font-size:10px;color:rgba(255,255,255,0.12)">Demo verisi · Gerçek kararlar için uzman danışmanlığı alın</span>
+<!-- Style Floating Panel -->
+<div class="float-panel" id="style-panel">
+  <div class="fp-header">
+    Harita Stili
+    <span class="fp-close" onclick="togglePanel('style')">✕</span>
+  </div>
+  <div class="fp-body">
+    <button class="style-btn active" data-style="dark" onclick="setMapStyle('dark',this)">
+      🌑 Koyu (Dark Matter)
+    </button>
+    <button class="style-btn" data-style="light" onclick="setMapStyle('light',this)">
+      ☀️ Açık (Positron)
+    </button>
+    <button class="style-btn" data-style="sat" onclick="setMapStyle('sat',this)">
+      🛰️ Uydu (Türkiye)
+    </button>
+    <button class="style-btn" data-style="topo" onclick="setMapStyle('topo',this)">
+      🗺️ Topo (OSM Carto)
+    </button>
+  </div>
 </div>
 
-<div id="toast-container"></div>
+<!-- Draw Toolbar -->
+<div id="draw-toolbar">
+  <span style="font-size:11px;color:var(--c-accent);font-weight:700;margin-right:4px">✏️ Parsel Çiz</span>
+  <button class="draw-btn active" id="dbtn-poly" onclick="setDrawMode('polygon')">Poligon</button>
+  <button class="draw-btn" id="dbtn-rect" onclick="setDrawMode('rect')">Dikdörtgen</button>
+  <div style="width:1px;height:20px;background:var(--c-border);margin:0 4px"></div>
+  <button class="draw-btn" id="dbtn-undo" onclick="drawUndo()" style="opacity:.6">↩ Geri Al</button>
+  <button class="draw-btn danger" onclick="cancelDraw()">İptal</button>
+</div>
 
+<!-- Status Bar -->
+<footer id="status-bar">
+  <span id="sb-coords">29.0200, 40.9900</span>
+  <span id="sb-zoom" style="font-size:10px;font-family:monospace">Z12</span>
+  <span id="sb-draw-hint" style="color:var(--c-yellow);font-weight:700;display:none"></span>
+  <span id="sb-feats" style="margin-left:auto;font-size:10px"></span>
+  <span id="sb-disclaimer" style="font-size:9px;color:rgba(255,255,255,.12)">Demo verisi · Gerçek kararlar için uzman danışmanlığı alın</span>
+</footer>
+
+<!-- Toast Container -->
+<div id="toast-wrap"></div>
+
+<!-- ═══════════════════════════════════════════════════════ SCRIPT ══════════════ -->
 <script>
-const API_BASE = (window.location.port==='8080'||window.location.port==='5173')
+// ── CONFIG ───────────────────────────────────────────────────────────────────
+const API = (window.location.port==='8080'||window.location.port==='5173')
   ? 'http://localhost:8000' : '';
 
-let currentMode = 'radar';
-let map = null;
-let animHeight = 21, animTarget = 21, animFrame = null;
-let currentBuilding = { center: [29.02, 40.99] };
-let activeMapLayers = { heatmap: true, parcels: false };
-let lastResult = null;
+const MAP_STYLES = {
+  dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+  sat: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json', // fallback
+  topo: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+};
 
-// Badges
-const BADGE_KEY = 'kentselsim_badges_v1';
-function loadBadges() { try { return JSON.parse(localStorage.getItem(BADGE_KEY)||'[]'); } catch { return []; } }
-function saveBadges(a) { localStorage.setItem(BADGE_KEY, JSON.stringify(a)); }
-function renderBadges() {
-  const earned = loadBadges();
-  document.querySelectorAll('.badge-chip').forEach(el => el.classList.toggle('earned', earned.includes(el.dataset.id)));
-}
-function awardBadge(id, title, sub) {
-  const earned = loadBadges();
-  if (earned.includes(id)) return;
-  earned.push(id); saveBadges(earned); renderBadges();
-  showToast('🏅 Yeni Başarı: ' + title, sub, '🏅');
-}
-renderBadges();
+// ── STATE ────────────────────────────────────────────────────────────────────
+const S = {
+  mode: 'radar',
+  drawActive: false,
+  drawMode: 'polygon',
+  drawPoints: [],
+  drawFirstClick: null,
+  inspectedFeature: null,
+  lastCalcResult: null,
+  layers: { heatmap:true, 'scan-circles':false, 'osm-bld':true, 'opp-bld':true, 'sel-bld':true },
+  osmLoaded: false,
+  currentStyle: 'dark',
+  geocodeOpen: false,
+  animH: 21, animTarget: 21, animFrame: null,
+  buildingCenter: [29.02, 40.99],
+};
 
-// Toast
-function showToast(title, sub, icon='✦') {
-  const c = document.getElementById('toast-container');
-  const t = document.createElement('div'); t.className = 'toast';
-  t.innerHTML = `<div class="toast-icon">${icon}</div><div><div class="toast-title">${title}</div><div class="toast-sub">${sub}</div></div>`;
-  c.appendChild(t);
-  setTimeout(() => t.remove(), 3200);
+// ── BADGES ───────────────────────────────────────────────────────────────────
+const BADGE_KEY = 'ks_badges_v2';
+function getBadges() { try { return new Set(JSON.parse(localStorage.getItem(BADGE_KEY)||'[]')); } catch { return new Set(); } }
+function saveBadges(s) { localStorage.setItem(BADGE_KEY, JSON.stringify([...s])); }
+function renderBadgeRow() {
+  const earned = getBadges();
+  document.querySelectorAll('#badge-row .badge').forEach(el =>
+    el.classList.toggle('earned', earned.has(el.dataset.id)));
 }
+function award(id, title, sub) {
+  const set = getBadges();
+  if (set.has(id)) return;
+  set.add(id); saveBadges(set); renderBadgeRow();
+  toast('🏅 Yeni Başarı: ' + title, sub, '🏅');
+}
+renderBadgeRow();
 
-// API
+// ── TOAST ────────────────────────────────────────────────────────────────────
+function toast(title, sub='', icon='✦', isErr=false) {
+  const w = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  el.className = 'toast' + (isErr ? ' toast-err' : '');
+  el.innerHTML = `<div class="toast-icon">${icon}</div>
+    <div class="toast-body">
+      <div class="toast-title">${title}</div>
+      ${sub ? `<div class="toast-sub">${sub}</div>` : ''}
+    </div>`;
+  w.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+function toastErr(msg) { toast('Hata', msg, '⚠️', true); }
+
+// ── API ───────────────────────────────────────────────────────────────────────
 async function apiFetch(path, opts={}) {
-  const r = await fetch(API_BASE + path, opts);
-  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.detail || r.statusText); }
+  const r = await fetch(API + path, opts);
+  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.detail||r.statusText); }
   return r.json();
 }
 async function checkApi() {
   const dot = document.getElementById('api-dot');
-  try { await apiFetch('/health'); dot.className = 'ok'; } catch { dot.className = 'err'; }
+  try {
+    const h = await apiFetch('/health');
+    dot.className = 'ok';
+    document.getElementById('api-ver').textContent = 'v' + (h.version||'1.1');
+  } catch { dot.className = 'err'; }
 }
 checkApi();
 
-// Map init
-map = new maplibregl.Map({
+// ── MAP INIT ──────────────────────────────────────────────────────────────────
+const map = new maplibregl.Map({
   container: 'map',
-  style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  style: MAP_STYLES.dark,
   center: [29.02, 40.99], zoom: 12, pitch: 45, bearing: -15, antialias: true
 });
+
 map.addControl(new maplibregl.NavigationControl({showCompass:true}), 'bottom-right');
+map.addControl(new maplibregl.ScaleControl({unit:'metric'}), 'bottom-left');
+
+map.on('mousemove', e => {
+  document.getElementById('sb-coords').textContent =
+    e.lngLat.lng.toFixed(5) + ', ' + e.lngLat.lat.toFixed(5);
+});
+map.on('zoom', () => {
+  document.getElementById('sb-zoom').textContent = 'Z' + map.getZoom().toFixed(1);
+});
 
 map.on('load', () => {
-  // Heatmap source
-  map.addSource('scan-heat', { type:'geojson', data:{type:'FeatureCollection',features:[]} });
-  map.addLayer({ id:'scan-heatmap', type:'heatmap', source:'scan-heat',
-    paint: {
-      'heatmap-weight': ['interpolate',['linear'],['get','score'],0,0,100,1],
-      'heatmap-intensity': 1.2,
-      'heatmap-color': ['interpolate',['linear'],['heatmap-density'],
-        0,'rgba(0,0,0,0)', 0.2,'#fb7185', 0.5,'#fbbf24', 0.8,'#38bdf8', 1,'#f0abfc'],
-      'heatmap-radius': 40, 'heatmap-opacity': 0.7
-    }
-  });
-  // Parcel circles
-  map.addSource('scan-circles', { type:'geojson', data:{type:'FeatureCollection',features:[]} });
-  map.addLayer({ id:'scan-parcel-fill', type:'circle', source:'scan-circles',
-    layout:{visibility:'none'},
-    paint: {
-      'circle-radius': 10,
-      'circle-color': ['interpolate',['linear'],['get','score'],0,'#fb7185',50,'#fbbf24',100,'#34d399'],
-      'circle-opacity': 0.85,
-      'circle-stroke-width': 1.5, 'circle-stroke-color': 'rgba(255,255,255,0.3)'
-    }
-  });
-  // Selected building
-  map.addSource('sel-bld', { type:'geojson', data:{type:'FeatureCollection',features:[]} });
-  map.addLayer({ id:'sel-bld-ext', type:'fill-extrusion', source:'sel-bld',
-    paint: {
-      'fill-extrusion-color': '#1a4a6a',
-      'fill-extrusion-height': ['get','height'],
-      'fill-extrusion-base': 0, 'fill-extrusion-opacity': 0.9
-    }
-  });
-  // Opportunity buildings
-  map.addSource('opp-bld', { type:'geojson', data:{type:'FeatureCollection',features:[]} });
-  map.addLayer({ id:'opp-bld-ext', type:'fill-extrusion', source:'opp-bld',
-    paint: {
-      'fill-extrusion-color': ['interpolate',['linear'],['get','opportunity_score'],
-        0,'#1e3a5f', 50,'#1a4a6a', 100,'#38bdf8'],
-      'fill-extrusion-height': ['get','height'],
-      'fill-extrusion-opacity': 0.85
-    }
-  });
-
-  map.on('click', 'opp-bld-ext', e => {
-    const p = e.features[0].properties;
-    const sc = p.opportunity_score||0;
-    new maplibregl.Popup({offset:6})
-      .setLngLat(e.lngLat)
-      .setHTML(`<div class="popup-title">${p.neighborhood||'Bina'}</div>
-        <div class="popup-row"><span>Yükseklik</span><b>${p.height}m</b></div>
-        <div class="popup-row"><span>Fırsat Skoru</span><b style="color:${sc>=66?'var(--green)':'var(--yellow)'}">${sc.toFixed(0)}</b></div>
-        <div class="popup-row"><span>Bütçeye Uygun</span><b>${p.affordable?'Evet':'Hayır'}</b></div>`)
-      .addTo(map);
-  });
-  map.on('click', 'scan-parcel-fill', e => {
-    const p = e.features[0].properties;
-    showParcelPopup([e.lngLat.lng, e.lngLat.lat], p);
-  });
-  ['opp-bld-ext','scan-parcel-fill'].forEach(id => {
-    map.on('mouseenter', id, () => map.getCanvas().style.cursor='pointer');
-    map.on('mouseleave', id, () => map.getCanvas().style.cursor='');
-  });
-
+  initSources();
+  initLayers();
+  initClickHandlers();
   loadRadar();
+  restoreUrlState();
 });
 
 map.on('moveend', () => {
-  if (currentMode === 'proje') {
-    currentBuilding.center = [map.getCenter().lng, map.getCenter().lat];
-    updateSelBuilding(animHeight);
+  saveUrlState();
+  if (S.mode === 'proje') {
+    S.buildingCenter = [map.getCenter().lng, map.getCenter().lat];
+    updateSelBuilding(S.animH);
   }
 });
 
-function safeSetData(id, data) { const s = map.getSource(id); if (s) s.setData(data); }
+// ── SOURCES & LAYERS ──────────────────────────────────────────────────────────
+const EMPTY_FC = {type:'FeatureCollection',features:[]};
+function initSources() {
+  const srcs = { 'scan-heat':EMPTY_FC, 'scan-circles':EMPTY_FC,
+    'osm-bld':EMPTY_FC, 'sel-bld':EMPTY_FC, 'opp-bld':EMPTY_FC,
+    'draw-line':EMPTY_FC, 'draw-pts':EMPTY_FC };
+  Object.entries(srcs).forEach(([id, d]) => map.addSource(id, {type:'geojson', data:d}));
+}
 
-// Gauge
-function setGauge(valM, score) {
-  const arc = document.getElementById('gauge-arc');
-  const fill = Math.max(0, Math.min(1, score/100)) * 188.5;
-  arc.setAttribute('stroke-dasharray', `${fill.toFixed(1)} ${(251.33-fill).toFixed(1)}`);
-  const col = score>=86 ? '#f59e0b' : score>=66 ? '#38bdf8' : score>=41 ? '#fbbf24' : '#fb7185';
-  arc.setAttribute('stroke', col);
-  const el = document.getElementById('gauge-value');
-  const prev = parseFloat(el.dataset.val||0);
-  el.dataset.val = valM;
-  animCounter(prev, valM, 700, v => {
-    el.textContent = v>=0 ? `+${fmtM(v)}M` : `${fmtM(v)}M`;
-    el.style.color = v>=0 ? 'var(--green)' : 'var(--red)';
+function initLayers() {
+  // Heatmap
+  map.addLayer({id:'scan-heatmap',type:'heatmap',source:'scan-heat',paint:{
+    'heatmap-weight':['interpolate',['linear'],['get','score'],0,0,100,1],
+    'heatmap-intensity':1.3,
+    'heatmap-color':['interpolate',['linear'],['heatmap-density'],
+      0,'rgba(0,0,0,0)', 0.15,'#ef4444', 0.4,'#f59e0b', 0.7,'#38bdf8', 1,'#f0abfc'],
+    'heatmap-radius':44,'heatmap-opacity':.72
+  }});
+  // Parcel circles
+  map.addLayer({id:'scan-circles',type:'circle',source:'scan-circles',
+    layout:{visibility:'none'},
+    paint:{
+      'circle-radius':['interpolate',['linear'],['zoom'],10,6,15,14],
+      'circle-color':['interpolate',['linear'],['get','score'],0,'#ef4444',40,'#f59e0b',70,'#10b981',100,'#f59e0b'],
+      'circle-opacity':.88,'circle-stroke-width':1.5,'circle-stroke-color':'rgba(255,255,255,.25)'
+    }
+  });
+  // OSM buildings
+  map.addLayer({id:'osm-bld-fill',type:'fill-extrusion',source:'osm-bld',
+    paint:{
+      'fill-extrusion-color':['interpolate',['linear'],['get','risk_score'],
+        0,'#1e3a5f',50,'#1a4a6a',100,'#ef4444'],
+      'fill-extrusion-height':['*',['coalesce',['get','floor_count'],3],3.2],
+      'fill-extrusion-base':0,'fill-extrusion-opacity':.8
+    }
+  });
+  // Opportunity buildings
+  map.addLayer({id:'opp-bld-fill',type:'fill-extrusion',source:'opp-bld',
+    paint:{
+      'fill-extrusion-color':['interpolate',['linear'],['get','opportunity_score'],
+        0,'#1e3a5f',40,'#1a4a6a',70,'#0d6e9e',100,'#38bdf8'],
+      'fill-extrusion-height':['get','height'],
+      'fill-extrusion-base':0,'fill-extrusion-opacity':.9
+    }
+  });
+  // Selected/drawn parcel
+  map.addLayer({id:'sel-bld-fill',type:'fill-extrusion',source:'sel-bld',
+    paint:{
+      'fill-extrusion-color':'#10b981',
+      'fill-extrusion-height':['get','height'],
+      'fill-extrusion-base':0,'fill-extrusion-opacity':.85
+    }
+  });
+  // Parcel outline
+  map.addLayer({id:'sel-bld-outline',type:'fill',source:'sel-bld',
+    paint:{'fill-color':'rgba(16,185,129,.15)','fill-outline-color':'#10b981'}
+  });
+  // Draw preview line
+  map.addLayer({id:'draw-line-layer',type:'line',source:'draw-line',
+    paint:{'line-color':'#38bdf8','line-width':2,'line-dasharray':[2,2]}
+  });
+  // Draw preview points
+  map.addLayer({id:'draw-pts-layer',type:'circle',source:'draw-pts',
+    paint:{'circle-radius':5,'circle-color':'#38bdf8','circle-stroke-width':2,'circle-stroke-color':'#fff'}
   });
 }
-function fmtM(v) { return (Math.abs(v)>=1?v.toFixed(1):v.toFixed(2)); }
-function animCounter(from, to, dur, fn) {
-  const t0 = performance.now();
-  (function step(now) {
-    const t = Math.min((now-t0)/dur,1);
-    fn(from+(to-from)*(1-Math.pow(1-t,3)));
-    if (t<1) requestAnimationFrame(step);
-  })(t0);
-}
 
-// Score badge
-function setScoreBadge(score) {
-  const el = document.getElementById('opp-badge');
-  el.textContent = score===null ? '—' : `${score}/100`;
-  if (score===null) { el.className='score-badge'; return; }
-  if (score>=86) {
-    el.className='score-badge gold';
-    showToast('🏆 Altın Fırsat!', 'Olağanüstü yatırım fırsatı tespit edildi!','🏆');
-    awardBadge('altin-firsat','Altın Fırsat','Skor 86+');
-  } else if (score>=66) el.className='score-badge green';
-  else if (score>=41) el.className='score-badge yellow';
-  else el.className='score-badge red';
-}
+function setData(id, data) { const s = map.getSource(id); if (s) s.setData(data); }
 
-// Mode switching
-document.querySelectorAll('.mode-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    setMode(btn.dataset.mode);
+// ── CLICK HANDLERS ────────────────────────────────────────────────────────────
+function initClickHandlers() {
+  const clickable = ['opp-bld-fill','osm-bld-fill','scan-circles'];
+  clickable.forEach(layer => {
+    map.on('click', layer, e => {
+      if (S.drawActive) return;
+      openInspector(e.features[0], e.lngLat);
+    });
+    map.on('mouseenter', layer, () => { if (!S.drawActive) map.getCanvas().style.cursor='pointer'; });
+    map.on('mouseleave', layer, () => { if (!S.drawActive) map.getCanvas().style.cursor=''; });
   });
+  // Map click for drawing
+  map.on('click', onMapClick);
+  map.on('dblclick', e => { if (S.drawActive) { e.preventDefault(); finishDraw(); } });
+}
+
+// ── MODE SWITCHING ────────────────────────────────────────────────────────────
+document.querySelectorAll('.mode-tab').forEach(btn => {
+  btn.addEventListener('click', () => setMode(btn.dataset.mode));
 });
 
 function setMode(mode) {
-  currentMode = mode;
-  ['panel-radar','panel-kesif','panel-proje','panel-uzman'].forEach(id=>document.getElementById(id).style.display='none');
-  document.getElementById('radar-bar').style.display = mode==='radar' ? 'flex' : 'none';
-  document.getElementById('hud-right').classList.add('visible');
+  S.mode = mode;
+  document.querySelectorAll('.mode-tab').forEach(b => b.classList.toggle('active', b.dataset.mode===mode));
+  document.querySelectorAll('.panel-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('ps-' + mode).classList.add('active');
 
-  const actBtn = document.getElementById('btn-action');
-  if (mode==='radar') {
-    document.getElementById('panel-radar').style.display='block';
-    actBtn.textContent='Taramayı Yenile'; actBtn.onclick=loadRadar;
-  } else if (mode==='kesif') {
-    document.getElementById('panel-kesif').style.display='block';
-    actBtn.textContent='Mahalleleri Keşfet'; actBtn.onclick=loadKesif;
-    safeSetData('scan-heat',{type:'FeatureCollection',features:[]});
-    safeSetData('scan-circles',{type:'FeatureCollection',features:[]});
-  } else if (mode==='proje') {
-    document.getElementById('panel-proje').style.display='block';
-    actBtn.textContent='Hesapla ▶'; actBtn.onclick=runCalculate;
-    safeSetData('opp-bld',{type:'FeatureCollection',features:[]});
-  } else if (mode==='uzman') {
-    document.getElementById('panel-uzman').style.display='block';
-    actBtn.textContent='Senaryo Karşılaştır'; actBtn.onclick=runScenario;
-  }
+  // Update collapse button chevron
+  const col = document.getElementById('panel-collapse');
+  col.style.right = document.getElementById('panel-left').classList.contains('collapsed') ? '14px' : '-14px';
+
+  // Clear mode-specific layers
+  if (mode === 'radar') { setData('opp-bld',EMPTY_FC); loadRadar(); }
+  if (mode === 'kesif') { setData('scan-heat',EMPTY_FC); setData('scan-circles',EMPTY_FC); }
+  if (mode === 'proje') { setData('opp-bld',EMPTY_FC); }
+  if (mode === 'uzman') {}
+
+  saveUrlState();
 }
 
-// RADAR
+// ── RADAR ─────────────────────────────────────────────────────────────────────
 async function loadRadar() {
-  let features = [];
-  try {
-    const fc = await apiFetch('/data/sample');
-    features = (fc.features||[]).map((f,i) => {
-      const score = 30 + Math.floor(Math.random()*65);
-      return {...f, properties:{...f.properties, score, k_index:(score-30)*200000}};
-    });
-  } catch {}
-  features = [...features, ...genSyntheticPoints()];
-  renderRadar(features);
-}
-
-function genSyntheticPoints() {
-  const pts = [[29.02,40.99],[29.03,40.985],[29.025,40.992],[29.015,40.996],[29.035,40.98],
-               [29.018,40.987],[29.028,40.994],[29.04,40.978],[29.012,40.995],[29.033,40.982]];
-  return pts.map((c,i) => {
-    const score = 25 + (i*7+31)%72;
-    return { type:'Feature', geometry:{type:'Point',coordinates:c},
-      properties:{ parcel_id:`SYN-${100+i}`, score, k_index:(score-25)*200000,
-        floor_count:3+i%5, unit_count:8+i*2,
-        district:['Kadıköy','Maltepe','Ataşehir','Kartal'][i%4],
-        neighborhood:['Caferağa','Cevizli','Küçükbakkalköy','Bağlarbaşı'][i%4] }};
+  let feats = [];
+  try { const fc = await apiFetch('/data/sample'); feats = fc.features||[]; } catch {}
+  // Synthetic points to fill the radar
+  feats = [...feats, ...synthScanPoints()];
+  feats = feats.map(f => {
+    const s = f.properties.score ?? Math.round(25 + Math.random()*70);
+    return {...f, properties:{...f.properties, score:s, k_index:(s-20)*180000}};
   });
+  renderRadar(feats);
 }
 
-function renderRadar(features) {
-  safeSetData('scan-heat',{type:'FeatureCollection',features});
-  const pts = features.map(f => {
+function synthScanPoints() {
+  const seeds = [
+    [29.020,40.990,72],[29.031,40.985,88],[29.025,40.993,61],[29.015,40.997,45],
+    [29.038,40.980,93],[29.018,40.988,55],[29.028,40.994,78],[29.041,40.978,40],
+    [29.012,40.995,66],[29.034,40.982,82],[29.022,40.974,50],[29.047,40.976,35]
+  ];
+  return seeds.map(([lng,lat,score],i) => ({
+    type:'Feature',
+    geometry:{type:'Point',coordinates:[lng,lat]},
+    properties:{
+      parcel_id:`SYN-${100+i}`,score,k_index:(score-20)*180000,
+      floor_count:3+i%5,unit_count:8+i*2,
+      district:['Kadıköy','Maltepe','Ataşehir','Kartal','Avcılar'][i%5],
+      neighborhood:['Caferağa','Cevizli','Küçükbakkalköy','Bağlarbaşı','Merkez'][i%5],
+      parcel_area_m2:800+i*80,risk_score:Math.round(30+Math.random()*50)
+    }
+  }));
+}
+
+function renderRadar(feats) {
+  setData('scan-heat',{type:'FeatureCollection',features:feats});
+  const ptFeats = feats.map(f => {
     if (f.geometry.type==='Point') return f;
-    try { const c=turf.centroid(f); c.properties=f.properties; return c; } catch { return f; }
-  });
-  safeSetData('scan-circles',{type:'FeatureCollection',features:pts});
+    try { const c=turf.centroid(f); c.properties=f.properties; return c; } catch { return null; }
+  }).filter(Boolean);
+  setData('scan-circles',{type:'FeatureCollection',features:ptFeats});
 
-  const sorted = [...features].sort((a,b)=>b.properties.score-a.properties.score).slice(0,5);
-  const list = document.getElementById('scan-list');
-  list.innerHTML='';
-  sorted.forEach((f,i) => {
+  const sorted = [...feats].sort((a,b)=>b.properties.score-a.properties.score);
+  document.getElementById('kpi-total').textContent = feats.length;
+  const avgS = Math.round(feats.reduce((s,f)=>s+(f.properties.score||0),0)/feats.length);
+  document.getElementById('kpi-avg').textContent = avgS;
+  document.getElementById('sb-feats').textContent = feats.length + ' parsel';
+
+  const list = document.getElementById('radar-list');
+  list.innerHTML = '';
+  sorted.slice(0,5).forEach((f,i) => {
     const p=f.properties, s=p.score||0;
-    const col = s>=66?'var(--green)':s>=41?'var(--yellow)':'var(--red)';
-    const card=document.createElement('div'); card.className='scan-card';
-    card.innerHTML=`<div class="scan-rank ${i===0?'r1':i===1?'r2':i===2?'r3':''}">#${i+1}</div>
-      <div class="scan-info">
-        <div class="scan-addr">${p.parcel_id||'Parsel'}</div>
-        <div class="scan-meta">${p.district||''} ${p.neighborhood||''} · ${p.unit_count||'?'} daire</div>
-      </div>
-      <div style="font-size:14px;font-weight:700;color:${col}">${s}</div>`;
-    card.addEventListener('click',()=>{
-      const coords=f.geometry.type==='Point'?f.geometry.coordinates:turf.centroid(f).geometry.coordinates;
-      map.flyTo({center:coords,zoom:15,pitch:50,duration:800});
-      showParcelPopup(coords,p);
-      setGauge((p.k_index||0)/1e6, s);
-      setScoreBadge(s);
+    const col = s>=86?'var(--c-yellow)':s>=66?'var(--c-green)':s>=41?'var(--c-accent)':'var(--c-red)';
+    const card = document.createElement('div'); card.className='card';
+    card.style.padding='7px 10px';
+    card.innerHTML=`<div style="display:flex;align-items:center;gap:8px">
+        <div class="rank-badge ${i<3?'r'+(i+1):''}">#${i+1}</div>
+        <div style="flex:1;min-width:0">
+          <div class="card-title" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.parcel_id||'Parsel'}</div>
+          <div class="card-sub">${p.district||''} · ${p.unit_count||'?'} daire · ${p.parcel_area_m2||'?'}m²</div>
+        </div>
+        <div style="font-size:15px;font-weight:800;color:${col}">${s}</div>
+      </div>`;
+    card.addEventListener('click', () => {
+      const coords = f.geometry.type==='Point' ? f.geometry.coordinates : turf.centroid(f).geometry.coordinates;
+      map.flyTo({center:coords, zoom:16, pitch:55, duration:900});
+      openInspector(f, {lng:coords[0], lat:coords[1]});
     });
     list.appendChild(card);
   });
 
-  const scores=features.map(f=>f.properties.score||0);
-  document.getElementById('rb-parcels').textContent=features.length;
-  document.getElementById('rb-avgk').textContent=(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(0);
-  document.getElementById('rb-best').textContent=Math.max(...scores);
-
   if (sorted[0]) {
-    setGauge((sorted[0].properties.k_index||0)/1e6, sorted[0].properties.score);
-    setScoreBadge(sorted[0].properties.score);
+    const bs = sorted[0].properties.score;
+    updateGauge(bs, (sorted[0].properties.k_index||0)/1e6);
+    setScoreBadge(bs, 'opp-score');
   }
 }
 
-function showParcelPopup(coords,p) {
-  const s=p.score||0;
-  const col=s>=66?'var(--green)':s>=41?'var(--yellow)':'var(--red)';
-  new maplibregl.Popup({offset:8,closeButton:true})
-    .setLngLat(coords)
-    .setHTML(`<div class="popup-title">${p.parcel_id||'Parsel'}</div>
-      <div class="popup-row"><span>Fırsat Skoru</span><b style="color:${col}">${s}/100</b></div>
-      <div class="popup-row"><span>İlçe</span><b>${p.district||'—'}</b></div>
-      <div class="popup-row"><span>Mahalle</span><b>${p.neighborhood||'—'}</b></div>
-      <div class="popup-row"><span>Daire</span><b>${p.unit_count||'—'}</b></div>
-      <div class="popup-row"><span>Kat</span><b>${p.floor_count||'—'}</b></div>`)
-    .addTo(map);
-}
-
-function toggleLayer(name) {
-  activeMapLayers[name]=!activeMapLayers[name];
-  document.getElementById('layer-'+name).style.opacity=activeMapLayers[name]?1:0.5;
-  document.getElementById('layer-'+name).textContent=(activeMapLayers[name]?'✓ ':'')+
-    (name==='heatmap'?'Isı Haritası':'Parseller');
-  if (name==='heatmap') map.setLayoutProperty('scan-heatmap','visibility',activeMapLayers.heatmap?'visible':'none');
-  if (name==='parcels') map.setLayoutProperty('scan-parcel-fill','visibility',activeMapLayers.parcels?'visible':'none');
-}
-
-// KEŞİF
+// ── KEŞİF ─────────────────────────────────────────────────────────────────────
 async function loadKesif() {
+  const sp = document.getElementById('sp-kesif');
+  sp.style.display = 'block';
   const profile = {
     budget_tl: +document.getElementById('k-budget').value,
     intent: document.getElementById('k-intent').value,
@@ -677,182 +1060,257 @@ async function loadKesif() {
     min_unit_m2: +document.getElementById('k-m2').value
   };
   try {
-    const [rec,geo] = await Promise.all([
+    const [rec, geo] = await Promise.all([
       apiFetch('/market/recommendations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(profile)}),
       apiFetch('/market/opportunities',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(profile)})
     ]);
-    safeSetData('opp-bld', geo);
-    const list=document.getElementById('nbhd-list'); list.innerHTML='';
-    (rec.neighborhoods||[]).forEach(n => {
-      const s=Math.round(n.investment_score);
-      const col=s>=66?'var(--green)':s>=41?'var(--yellow)':'var(--red)';
-      const card=document.createElement('div'); card.className='nbhd-card';
-      card.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center">
-          <div><div class="nbhd-name">${n.neighborhood}</div>
-          <div class="nbhd-sub">${n.district} · ${fmtTL(n.price_per_m2)}/m²</div></div>
-          <div style="font-size:18px;font-weight:700;color:${col}">${s}</div></div>
-        <div class="nbhd-score-bar"><div class="nbhd-score-fill" style="width:${s}%"></div></div>
-        <div class="tag-row" style="margin-top:6px">
-          <span class="tag">Dönüşüm ${n.transformation_potential}%</span>
-          <span class="tag ${n.affordable?'green':'red'}">${n.affordable?'Bütçeye Uygun':'Bütçe Üstü'}</span>
-          <span class="tag">Likidite ${n.liquidity_score}/10</span>
-        </div>`;
-      card.addEventListener('click',()=>{
-        document.querySelectorAll('.nbhd-card').forEach(c=>c.classList.remove('selected'));
-        card.classList.add('selected');
-        map.flyTo({center:[n.lon,n.lat],zoom:15,pitch:55,duration:900});
-        setGauge(s/10,s); setScoreBadge(s);
-      });
-      list.appendChild(card);
-    });
-    if (rec.neighborhoods&&rec.neighborhoods.length>0) {
-      const f=rec.neighborhoods[0];
-      map.flyTo({center:[f.lon,f.lat],zoom:13,pitch:50,duration:1200});
+    setData('opp-bld', geo);
+    renderNbhdList(rec.neighborhoods||[]);
+    if (rec.neighborhoods?.length) {
+      const f = rec.neighborhoods[0];
+      map.flyTo({center:[f.lon,f.lat], zoom:13, pitch:55, duration:1200});
     }
-  } catch(e) { showToast('Hata',e.message,'⚠️'); }
+  } catch(e) { toastErr(e.message); }
+  finally { sp.style.display = 'none'; }
 }
 
-// PROJE
-async function runCalculate() {
-  const taks=+document.getElementById('p-taks').value;
-  const floorVal=+document.getElementById('floor-slider').value;
-  const kaks=+(taks*floorVal).toFixed(2);
-  document.getElementById('p-kaks').value=kaks;
-  const payload={
+function renderNbhdList(nbhds) {
+  const list = document.getElementById('nbhd-list'); list.innerHTML='';
+  nbhds.forEach(n => {
+    const s = Math.round(n.investment_score);
+    const col = s>=86?'var(--c-yellow)':s>=66?'var(--c-green)':s>=41?'var(--c-accent)':'var(--c-red)';
+    const c = document.createElement('div'); c.className='card';
+    c.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="card-title">${n.neighborhood}</div>
+          <div class="card-sub">${n.district} · ${fmtTL(n.price_per_m2)}/m²</div>
+        </div>
+        <div style="font-size:18px;font-weight:800;color:${col}">${s}</div>
+      </div>
+      <div class="score-bar"><div class="score-fill" style="width:${s}%"></div></div>
+      <div class="tag-wrap" style="margin-top:7px">
+        <span class="tag ${n.affordable?'green':'red'}">${n.affordable?'✓ Uygun Bütçe':'✗ Bütçe Üstü'}</span>
+        <span class="tag">Dönüşüm %${n.transformation_potential}</span>
+        <span class="tag cyan">Likidite ${n.liquidity_score}/100</span>
+      </div>`;
+    c.addEventListener('click', () => {
+      document.querySelectorAll('#nbhd-list .card').forEach(x=>x.classList.remove('selected'));
+      c.classList.add('selected');
+      map.flyTo({center:[n.lon,n.lat], zoom:15, pitch:60, duration:900});
+      updateGauge(s, s/10); setScoreBadge(s,'opp-score');
+      document.getElementById('kpi-units').textContent = '—';
+      if (s>=86) award('altin-firsat','🏆 Altın Fırsat','Skor 86+ mahalle keşfedildi');
+    });
+    list.appendChild(c);
+  });
+}
+
+// ── PROJE CALCULATE ────────────────────────────────────────────────────────────
+async function runCalc() {
+  const sp = document.getElementById('sp-calc');
+  sp.style.display='block';
+  const taks = +document.getElementById('p-taks').value;
+  const floorVal = +document.getElementById('floor-slider').value;
+  const kaks = +(taks*floorVal).toFixed(2);
+  document.getElementById('p-kaks').value = kaks;
+  const rayic = document.getElementById('p-rayic').value;
+  const payload = {
     parcel_area_m2:+document.getElementById('p-parcel').value,
     existing_footprint_area_m2:+document.getElementById('p-footprint').value,
     existing_floor_count:+document.getElementById('p-floors').value,
     existing_unit_count:+document.getElementById('p-units').value,
     owner_count:+document.getElementById('p-owners').value,
-    population:+document.getElementById('p-pop').value,
+    population:+document.getElementById('p-pop').value||null,
     target_taks:taks, target_kaks:kaks, avg_unit_size_m2:100,
     construction_cost_per_m2:+document.getElementById('p-cost').value,
     sale_price_per_m2:+document.getElementById('p-price').value,
     license_year:+document.getElementById('p-year').value,
-    license_month:+document.getElementById('p-month').value
+    license_month:+document.getElementById('p-month').value,
+    project_duration_years:+document.getElementById('p-dur').value||2.0,
+    current_market_value_per_m2: rayic ? +rayic : null,
   };
   try {
     const r = await apiFetch('/calculate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    lastResult=r;
-    showProjeResult(r);
-    const h=r.new_floor_count*3;
-    animTarget=h; if(!animFrame) animBldLoop();
-    const k=r.profitability_index||0;
-    const ks=Math.max(0,Math.min(100,50+k/500000));
-    setGauge(k/1e6,ks); setScoreBadge(Math.round(ks));
-    document.getElementById('kpi-units').textContent=r.total_unit_count_estimate;
-    document.getElementById('kpi-owners').textContent=r.units_to_owners;
-    const nisap=r.law_6306?.nisap_met;
-    document.getElementById('kpi-risk').textContent=nisap?'✓ Sağlandı':'✗ Yok';
-    document.getElementById('kpi-risk').className='kpi-val '+(nisap?'pos':'neg');
-    document.getElementById('btn-yarisibizden').style.display=r.yarisi_bizden?.eligible?'block':'none';
-    syncExpertTabs(r); checkAchievements(r,k);
-  } catch(e) { showToast('Hesaplama Hatası',e.message,'⚠️'); }
+    S.lastCalcResult = r;
+    showCalcResult(r);
+    S.animTarget = r.building_height_m || r.new_floor_count*3;
+    if (!S.animFrame) animBldLoop();
+    const k = r.profitability_index||0;
+    const ks = Math.max(0,Math.min(100,50+k/500000));
+    updateGauge(ks, k/1e6);
+    setScoreBadge(Math.round(ks),'opp-score');
+    document.getElementById('kpi-units').textContent = r.total_unit_count_estimate;
+    document.getElementById('kpi-nisap').textContent = r.law_6306?.required_new_threshold + ' malik gerekli';
+    syncExpertData(r);
+    checkAchievements(r, k);
+    document.getElementById('proje-result').style.display='flex';
+  } catch(e) { toastErr(e.message); }
+  finally { sp.style.display='none'; }
 }
 
-function showProjeResult(r) {
-  const wrap=document.getElementById('proje-result'); wrap.style.display='flex';
-  const k=r.profitability_index||0;
-  const kStr=k>=0?`+${fmtTL(k)}`:fmtTL(k);
-  document.getElementById('proje-result-table').innerHTML=mkRows([
-    ['Yeni Taban m²',r.new_footprint_area_m2+' m²'],
-    ['Toplam İnşaat m²',r.total_construction_area_m2+' m²'],
-    ['Yeni Kat',r.new_floor_count],
-    ['Toplam Daire',r.total_unit_count_estimate],
-    ['Hak Sahibi',r.units_to_owners],
-    ['Müteahhit',r.units_to_contractor],
-    ['Lojistik Maliyet',fmtTL(r.logistics_cost_tl||0)],
-    ['K Endeksi',kStr,k>=0?'pos':'neg'],
-    ['Kişi Başı m²',r.area_per_resident_m2+' m²'],
-  ]);
-  const tgs=[];
-  if (r.law_6306?.nisap_met) tgs.push(['✓ Nisap Sağlandı','green']); else tgs.push(['✗ Nisap Yok','red']);
-  if (r.yarisi_bizden?.eligible) tgs.push(['⚡ Yarısı Bizden','green']);
-  tgs.push(k>=0?['Kârlı Proje','green']:['Zarar Riski','red']);
-  document.getElementById('proje-tags').innerHTML=tgs.map(([t,c])=>`<span class="tag ${c}">${t}</span>`).join('');
-  const notes=[...(r.notes||[]), r.profitability_index_note||''].filter(Boolean);
-  document.getElementById('proje-notes').innerHTML=notes.map(n=>`• ${n}`).join('<br/>');
+function showCalcResult(r) {
+  const k = r.profitability_index||0;
+  document.getElementById('calc-result-table').innerHTML = mkKV([
+    ['Yeni Taban','m²',r.new_footprint_area_m2],
+    ['Toplam İnşaat','m²',r.total_construction_area_m2],
+    ['Bina Yüksekliği','m',r.building_height_m],
+    ['Yeni Kat','',r.new_floor_count],
+    ['Toplam Daire','',r.total_unit_count_estimate],
+    ['Hak Sahibi Dairesi','',r.units_to_owners],
+    ['Müteahhit Dairesi','',r.units_to_contractor],
+    ['İnşaat Maliyeti','₺',fmtTL(r.estimated_cost_tl)],
+    ['Lojistik Maliyet','₺',fmtTL(r.logistics_cost_tl)],
+    ['Tahmini Kâr','₺',fmtTL(r.estimated_profit_tl), r.estimated_profit_tl>=0?'pos':'neg'],
+    ['K Endeksi','TL/yıl',(k>=0?'+':'')+fmtTL(k), k>=0?'pos':'neg'],
+    r.area_per_resident_m2?['Kişi Başı','m²',r.area_per_resident_m2]:null,
+  ].filter(Boolean));
+
+  const tags = [];
+  if (r.law_6306) tags.push(`<span class="tag cyan">%50+1 Nisap: ${r.law_6306.required_new_threshold} malik</span>`);
+  if (r.yarisi_bizden?.eligible) tags.push('<span class="tag green">⚡ Yarısı Bizden Uygun</span>');
+  else if (r.yarisi_bizden) tags.push(`<span class="tag red">✗ Yarısı Bizden Uygun Değil</span>`);
+  if (k>=0) tags.push('<span class="tag green">Kârlı Proje</span>');
+  else tags.push('<span class="tag red">Zarar Riski</span>');
+  document.getElementById('calc-tags').innerHTML = tags.join('');
+
+  const notes = [...(r.notes||[])];
+  if (r.profitability_index_note) notes.unshift(r.profitability_index_note);
+  const noteBox = document.getElementById('calc-notes');
+  if (notes.length) { noteBox.style.display='block'; noteBox.innerHTML=notes.map(n=>`• ${n}`).join('<br/>'); }
+  else noteBox.style.display='none';
+
+  const ybBtn = document.getElementById('btn-yb');
+  ybBtn.style.display = r.yarisi_bizden?.eligible ? 'flex' : 'none';
 }
 
-function mkRows(data) {
-  return data.map(([l,v,c])=>`<div class="result-row"><span class="label">${l}</span><span class="val ${c||''}">${v}</span></div>`).join('');
+function mkKV(rows) {
+  return rows.map(([k,unit,v,cls]) =>
+    `<div class="kv-row"><span class="k">${k}${unit?' ('+unit+')':''}</span>
+     <span class="v ${cls||''}">${v}</span></div>`
+  ).join('');
 }
 
-function syncExpertTabs(r) {
-  const l=r.law_6306||{};
-  document.getElementById('kanun-info').style.display='none';
-  document.getElementById('kanun-detail').innerHTML=`<div class="result-table">${mkRows([
-    ['Toplam Malik',l.owner_count||'—'],
-    ['Yeni Nisap (%50+1)',l.required_new_threshold||'—'],
-    ['Eski Nisap (⅔)',l.required_old_threshold||'—'],
-    ['Nisap Durumu',l.nisap_met?'✓ Sağlandı':'✗ Sağlanmadı','l.nisap_met?"pos":"neg"'],
-    ['4 Şubat 2026','%50+1 geçerli'],
-  ])}</div>`;
-  const y=r.yarisi_bizden||{};
-  document.getElementById('yarisi-info').style.display='none';
-  document.getElementById('yarisi-detail').innerHTML=`<div class="result-table">${mkRows([
-    ['Uygunluk',y.eligible?'✓ Uygun':'✗ Uygun Değil'],
-    ['Hibe/Daire',y.grant_per_unit_tl?fmtTL(y.grant_per_unit_tl):'—'],
-    ['Kredi/Daire',y.loan_per_unit_tl?fmtTL(y.loan_per_unit_tl):'—'],
-    ['Taşınma Yardımı',y.moving_aid_tl?fmtTL(y.moving_aid_tl):'—'],
-    ['Toplam Destek',y.total_support_tl?fmtTL(y.total_support_tl):'—'],
-    ['Son Başvuru',y.application_deadline||'—'],
-    ['Neden',y.ineligibility_reason||'—'],
-  ])}</div>`;
+function syncExpertData(r) {
+  const l = r.law_6306||{};
+  document.getElementById('kanun-out').innerHTML = `
+    <div class="kv-table">${mkKV([
+      ['Toplam Malik','',l.owner_count||'—'],
+      ['Yeni Nisap (%50+1)','',l.required_new_threshold,'warn'],
+      ['Eski Nisap (⅔)','',l.required_old_threshold],
+      ['Not','','4 Şubat 2026 sonrası salt çoğunluk yeterli'],
+    ])}</div>
+    <div class="note-box" style="margin-top:8px">${l.nonconsenting_owner_note||''}</div>`;
+
+  const y = r.yarisi_bizden;
+  if (y) {
+    document.getElementById('yarisi-out').innerHTML = `
+      <div class="kv-table">${mkKV([
+        ['Uygunluk','',y.eligible?'✓ Uygun':'✗ Uygun Değil', y.eligible?'pos':'neg'],
+        ['Hibe / Daire','₺',fmtTL(y.grant_per_unit_tl),'pos'],
+        ['Kredi / Daire','₺',fmtTL(y.credit_per_unit_tl),'pos'],
+        ['Toplam / Daire','₺',fmtTL(y.total_per_unit_tl),'pos'],
+        ['Taşınma A','₺',fmtTL(y.relocation_option_a_tl)],
+        ['Taşınma B','',y.relocation_option_b_description],
+        ['Tüm Hak Sahipleri','₺',fmtTL(y.total_for_all_owners_tl),'pos'],
+        ['Son Başvuru','',y.deadline,'warn'],
+        y.ineligibility_reasons?.length?['Neden','',y.ineligibility_reasons.join('; '),'neg']:null,
+      ].filter(Boolean))}</div>
+      <div class="note-box" style="margin-top:8px">${y.disclaimer||''}</div>`;
+  }
+}
+
+function openYarisiTab() {
+  setMode('uzman'); setTimeout(()=>switchUTab('yarisi'),50);
 }
 
 function checkAchievements(r,k) {
-  if (k>20e6) awardBadge('super-getiri','⚡ Süper Getiri','K > 20M TL/yıl');
-  if ((r.new_floor_count||0)>15) awardBadge('mega-proje','🏗 Mega Proje','15+ katlı bina');
-  if ((r.units_to_owners||0)>20) awardBadge('toplumcu','👥 Toplumcu','20+ hak sahibi dairesi');
-  if (r.yarisi_bizden?.eligible&&k>=0) awardBadge('yarisi-uzman','💰 Yarısı Bizden Uzmanı','Uygun + kârlı proje');
+  if (k>20e6) award('super-getiri','⚡ Süper Getiri','K > 20 Milyon TL/yıl');
+  if ((r.new_floor_count||0)>15) award('mega-proje','🏗️ Mega Proje','15 kattan fazla bina');
+  if ((r.units_to_owners||0)>20) award('toplumcu','👥 Toplumcu','20+ hak sahibi dairesi');
+  if (r.yarisi_bizden?.eligible&&k>=0) award('yarisi-uzman','💰 Yarısı Bizden Uzmanı','Uygun + kârlı proje');
 }
 
-// Floor slider animation
-function onFloorSlider(val) {
-  document.getElementById('floor-slider-val').textContent=val;
-  animTarget=val*3;
-  const taks=+document.getElementById('p-taks').value;
-  document.getElementById('p-kaks').value=(taks*val).toFixed(2);
-  if (!animFrame) animBldLoop();
-}
-function animBldLoop() {
-  animHeight+=(animTarget-animHeight)*0.14;
-  updateSelBuilding(animHeight);
-  if (Math.abs(animTarget-animHeight)>0.3) animFrame=requestAnimationFrame(animBldLoop);
-  else { animHeight=animTarget; updateSelBuilding(animHeight); animFrame=null; }
-}
-function updateSelBuilding(h) {
-  const c=currentBuilding.center, d=0.0005;
-  const ring=[[c[0]-d,c[1]-d],[c[0]+d,c[1]-d],[c[0]+d,c[1]+d],[c[0]-d,c[1]+d],[c[0]-d,c[1]-d]];
-  safeSetData('sel-bld',{type:'FeatureCollection',features:[{
-    type:'Feature',geometry:{type:'Polygon',coordinates:[ring]},properties:{height:h}
-  }]});
-  map.setPaintProperty('sel-bld-ext','fill-extrusion-color',h>30?'#1a6a8a':h>15?'#1a4a6a':'#1a3a5a');
-}
-
-// UZMAN tabs
-function switchTab(name) {
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
-  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
+// ── UZMAN TABS ────────────────────────────────────────────────────────────────
+function switchUTab(name) {
+  document.querySelectorAll('.tab-bar .tab').forEach(t=>t.classList.toggle('active',t.dataset.utab===name));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.toggle('active',c.id==='utab-'+name));
 }
 
 async function runScenario() {
-  const base=buildBaseInput();
-  const floorCounts=document.getElementById('s-floors').value.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n));
+  const sp = document.getElementById('sp-scen'); sp.style.display='block';
+  const base = buildBaseInput();
+  const floorCounts = document.getElementById('s-floors').value
+    .split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n)&&n>0);
   try {
-    const out=await apiFetch('/calculate/scenarios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({base,floor_counts:floorCounts})});
-    const rows=out.rows||[];
-    if (!rows.length) return;
-    const bestK=Math.max(...rows.map(r=>r.result.profitability_index||0));
-    let html=`<table class="scenario-table"><thead><tr><th>Kat</th><th>KAKS</th><th>Daire</th><th>K Endeksi</th></tr></thead><tbody>`;
-    rows.forEach(r=>{
-      const k=r.result.profitability_index||0, ib=k===bestK;
-      html+=`<tr><td>${r.result.new_floor_count}</td><td>${r.target_kaks.toFixed(1)}</td><td>${r.result.total_unit_count_estimate}</td><td class="${ib?'best':k<0?'neg':''}">${k>=0?'+':''}${fmtShort(k)}</td></tr>`;
-    });
-    html+='</tbody></table>';
-    document.getElementById('scenario-table-wrap').innerHTML=html;
-  } catch(e) { showToast('Hata',e.message,'⚠️'); }
+    const out = await apiFetch('/calculate/scenarios',{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({base,floor_counts:floorCounts})});
+    renderScenario(out.rows||[]);
+  } catch(e) { toastErr(e.message); }
+  finally { sp.style.display='none'; }
+}
+
+function renderScenario(rows) {
+  if (!rows.length) return;
+  const bestK = Math.max(...rows.map(r=>r.result.profitability_index||0));
+  const maxAbsK = Math.max(...rows.map(r=>Math.abs(r.result.profitability_index||0)))||1;
+  let html = `<div class="scenario-wrap"><table class="sc-table">
+    <thead><tr><th>Kat</th><th>KAKS</th><th>Daire</th><th>K Endeksi</th><th></th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    const k = r.result.profitability_index||0, isBest = k===bestK;
+    const pct = Math.round(Math.abs(k)/maxAbsK*100);
+    const barCol = k>=0 ? (isBest?'#10b981':'#38bdf8') : '#ef4444';
+    html += `<tr>
+      <td>${r.result.new_floor_count}</td>
+      <td>${r.target_kaks.toFixed(1)}</td>
+      <td>${r.result.total_unit_count_estimate}</td>
+      <td class="${isBest?'best':k<0?'neg':''}">${k>=0?'+':''}${fmtShort(k)}</td>
+      <td class="sc-bar-cell"><div class="sc-bar-bg">
+        <div class="sc-bar-fill" style="width:${pct}%;background:${barCol}"></div>
+      </div></td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  document.getElementById('scenario-out').innerHTML = html;
+}
+
+async function runSerefiye() {
+  const sp = document.getElementById('sp-seref'); sp.style.display='block';
+  const payload = {
+    total_floor_count:+document.getElementById('sr-floors').value,
+    avg_unit_size_m2:+document.getElementById('sr-m2').value,
+    sale_price_per_m2:+document.getElementById('sr-price').value,
+    top_floor_premium_pct:+document.getElementById('sr-prem').value/100
+  };
+  try {
+    const out = await apiFetch('/calculate/serefiye',{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    renderSerefiye(out.floors||[]);
+  } catch(e) { toastErr(e.message); }
+  finally { sp.style.display='none'; }
+}
+
+function renderSerefiye(floors) {
+  if (!floors.length) return;
+  const maxVal = Math.max(...floors.map(f=>f.unit_value_tl));
+  const n = floors.length;
+  const bld = document.createElement('div'); bld.className='serefiye-bld';
+  floors.forEach((f,i) => {
+    const pct = (f.unit_value_tl/maxVal*100).toFixed(0);
+    const t = (i/(n-1||1));
+    const h = Math.round(200 + t*80), l = Math.round(30+t*30);
+    const col = `hsl(${h},80%,${l}%)`;
+    const el = document.createElement('div'); el.className='serefiye-floor-row';
+    el.innerHTML=`<div class="sf-label">${f.tier} (K${f.floor_num})</div>
+      <div class="sf-bar-wrap"><div class="sf-bar" style="width:${pct}%;background:${col}"></div></div>
+      <div class="sf-price" style="color:${col}">${fmtShort(f.unit_value_tl)}₺</div>`;
+    bld.appendChild(el);
+  });
+  const total = floors.reduce((s,f)=>s+f.unit_value_tl,0);
+  const avgEl = document.createElement('div');
+  avgEl.style.cssText='font-size:10px;color:var(--c-muted);text-align:right;padding:4px 8px 2px';
+  avgEl.textContent=`Ortalama: ${fmtTL(total/floors.length)}`;
+  document.getElementById('serefiye-out').innerHTML='';
+  document.getElementById('serefiye-out').appendChild(bld);
+  document.getElementById('serefiye-out').appendChild(avgEl);
 }
 
 function buildBaseInput() {
@@ -862,59 +1320,395 @@ function buildBaseInput() {
     existing_floor_count:+document.getElementById('p-floors').value,
     existing_unit_count:+document.getElementById('p-units').value,
     owner_count:+document.getElementById('p-owners').value,
-    population:+document.getElementById('p-pop').value,
+    population:+document.getElementById('p-pop').value||null,
     target_taks:+document.getElementById('p-taks').value,
     target_kaks:+document.getElementById('p-kaks').value,
     avg_unit_size_m2:100,
     construction_cost_per_m2:+document.getElementById('p-cost').value,
     sale_price_per_m2:+document.getElementById('p-price').value,
     license_year:+document.getElementById('p-year').value,
-    license_month:+document.getElementById('p-month').value
+    license_month:+document.getElementById('p-month').value,
+    project_duration_years:+document.getElementById('p-dur').value||2.0,
   };
 }
 
-async function runSerefiye() {
-  const payload={
-    total_floor_count:+document.getElementById('sr-floors').value,
-    avg_unit_size_m2:+document.getElementById('sr-m2').value,
-    sale_price_per_m2:+document.getElementById('sr-price').value,
-    top_floor_premium_pct:+document.getElementById('sr-prem').value/100
-  };
+// ── DRAWING TOOL ──────────────────────────────────────────────────────────────
+function toggleDraw() {
+  if (S.drawActive) { cancelDraw(); return; }
+  S.drawActive=true;
+  S.drawPoints=[];
+  S.drawMode='polygon';
+  map.getCanvas().style.cursor='crosshair';
+  document.getElementById('draw-toolbar').classList.add('active');
+  document.getElementById('sb-draw-hint').style.display='block';
+  document.getElementById('sb-draw-hint').textContent='Tıkla: Nokta ekle | Çift tıkla: Bitir | ESC: İptal';
+  document.getElementById('btn-draw').classList.add('active');
+  document.getElementById('btn-draw-parcel')?.classList.add('active');
+  setMode('proje');
+}
+function cancelDraw() {
+  S.drawActive=false; S.drawPoints=[];
+  map.getCanvas().style.cursor='';
+  document.getElementById('draw-toolbar').classList.remove('active');
+  document.getElementById('sb-draw-hint').style.display='none';
+  document.getElementById('btn-draw').classList.remove('active');
+  document.getElementById('btn-draw-parcel')?.classList.remove('active');
+  setData('draw-line',EMPTY_FC); setData('draw-pts',EMPTY_FC);
+}
+function setDrawMode(m) {
+  S.drawMode=m;
+  document.getElementById('dbtn-poly').classList.toggle('active',m==='polygon');
+  document.getElementById('dbtn-rect').classList.toggle('active',m==='rect');
+}
+function drawUndo() {
+  if (S.drawPoints.length>0) { S.drawPoints.pop(); updateDrawPreview(); }
+}
+
+function onMapClick(e) {
+  if (!S.drawActive) return;
+  const pt = [e.lngLat.lng, e.lngLat.lat];
+  if (S.drawMode==='rect' && S.drawFirstClick===null) {
+    S.drawFirstClick = pt;
+    S.drawPoints = [pt];
+    document.getElementById('sb-draw-hint').textContent='İkinci köşeyi seç';
+  } else if (S.drawMode==='rect' && S.drawFirstClick) {
+    const [x0,y0]=S.drawFirstClick, [x1,y1]=pt;
+    S.drawPoints=[
+      [x0,y0],[x1,y0],[x1,y1],[x0,y1],[x0,y0]
+    ];
+    S.drawFirstClick=null;
+    finishDraw();
+    return;
+  } else {
+    S.drawPoints.push(pt);
+  }
+  updateDrawPreview();
+  document.getElementById('sb-draw-hint').textContent=
+    `${S.drawPoints.length} nokta | Çift tıkla: Bitir | ESC: İptal`;
+}
+
+function updateDrawPreview() {
+  const pts = S.drawPoints;
+  if (!pts.length) { setData('draw-line',EMPTY_FC); setData('draw-pts',EMPTY_FC); return; }
+  setData('draw-pts',{type:'FeatureCollection',features:pts.map(p=>({
+    type:'Feature',geometry:{type:'Point',coordinates:p},properties:{}
+  }))});
+  if (pts.length>=2) {
+    const coords=[...pts,pts[0]];
+    setData('draw-line',{type:'FeatureCollection',features:[{
+      type:'Feature',geometry:{type:'LineString',coordinates:coords},properties:{}
+    }]});
+  }
+}
+
+function finishDraw() {
+  if (S.drawPoints.length<3) { toast('En az 3 nokta gerekli','Daha fazla nokta ekleyin','⚠️'); return; }
+  const pts = S.drawPoints;
+  const ring = [...pts, pts[0]];
+  const poly = {type:'Feature',geometry:{type:'Polygon',coordinates:[ring]},properties:{height:21}};
+  const areaM2 = Math.round(turf.area(poly));
+  // Update form
+  document.getElementById('p-parcel').value = areaM2;
+  // Estimate footprint from parcel
+  const estFootprint = Math.round(areaM2*0.3);
+  document.getElementById('p-footprint').value = estFootprint;
+  // Show on map
+  showDrawnParcel([ring], 21);
+  S.buildingCenter = turf.centroid(poly).geometry.coordinates;
+  map.flyTo({center:S.buildingCenter, zoom:17, pitch:60, duration:700});
+  toast('Parsel Çizildi',`Alan: ${areaM2.toLocaleString()} m²`,'✅');
+  cancelDraw();
+}
+
+function showDrawnParcel(rings, h) {
+  setData('sel-bld',{type:'FeatureCollection',features:[{
+    type:'Feature',geometry:{type:'Polygon',coordinates:rings},properties:{height:h}
+  }]});
+}
+
+// ── 3D BUILDING ANIMATION ─────────────────────────────────────────────────────
+function onFloorSlider(val) {
+  document.getElementById('floor-disp').textContent = val;
+  const taks = +document.getElementById('p-taks').value;
+  document.getElementById('p-kaks').value = (taks*val).toFixed(2);
+  S.animTarget = val * 3;
+  if (!S.animFrame) animBldLoop();
+}
+function animBldLoop() {
+  S.animH += (S.animTarget - S.animH) * 0.14;
+  updateSelBuilding(S.animH);
+  if (Math.abs(S.animTarget-S.animH)>0.2) S.animFrame=requestAnimationFrame(animBldLoop);
+  else { S.animH=S.animTarget; updateSelBuilding(S.animH); S.animFrame=null; }
+}
+function updateSelBuilding(h) {
+  const c=S.buildingCenter, d=0.0005;
+  showDrawnParcel([[
+    [c[0]-d,c[1]-d],[c[0]+d,c[1]-d],[c[0]+d,c[1]+d],[c[0]-d,c[1]+d],[c[0]-d,c[1]-d]
+  ]], h);
+  const col = h>45?'#0ea5e9':h>24?'#10b981':'#38bdf8';
+  map.setPaintProperty('sel-bld-fill','fill-extrusion-color',col);
+}
+
+// ── OSM BUILDING LOADING ─────────────────────────────────────────────────────
+async function loadOsmAtCenter() {
+  const c = map.getCenter();
+  const lon=c.lng.toFixed(5), lat=c.lat.toFixed(5);
+  const nav = document.getElementById('btn-osm');
+  nav.textContent='⏳';
   try {
-    const out=await apiFetch('/calculate/serefiye',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const maxP=Math.max(...out.floors.map(f=>f.unit_value_tl));
-    const list=document.getElementById('serefiye-list'); list.innerHTML='';
-    out.floors.slice().reverse().forEach(f=>{
-      const pct=(f.unit_value_tl/maxP*100).toFixed(0);
-      const hue=Math.round(200+(f.serefiye_factor-1)*200);
-      const col=`hsl(${hue},80%,55%)`;
-      const el=document.createElement('div'); el.className='serefiye-floor';
-      el.innerHTML=`<div class="serefiye-kat">${f.tier}</div>
-        <div class="serefiye-bar-wrap"><div class="serefiye-bar" style="width:${pct}%;background:${col}"></div></div>
-        <div class="serefiye-price" style="color:${col}">${fmtTL(f.unit_value_tl)}</div>`;
-      list.appendChild(el);
-    });
-  } catch(e) { showToast('Hata',e.message,'⚠️'); }
+    const data = await apiFetch(`/data/osm?lon=${lon}&lat=${lat}&radius_m=200`);
+    setData('osm-bld', data);
+    const n = data.features?.length||0;
+    toast(`${n} OSM Bina Yüklendi`, `Merkez: ${lon}, ${lat}`, '🏢');
+    document.getElementById('sb-feats').textContent = n + ' OSM bina';
+    S.osmLoaded = true;
+    if (n>0 && S.mode==='proje') {
+      // Pre-fill form with average OSM values
+      const avgFloors = Math.round(data.features.reduce((s,f)=>s+(f.properties.floor_count||3),0)/n);
+      const totalArea = data.features.reduce((s,f)=>s+(f.properties.parcel_area_m2||0),0);
+      if (totalArea>0) {
+        document.getElementById('p-parcel').value = Math.round(totalArea/n);
+        document.getElementById('p-floors').value = avgFloors;
+        document.getElementById('p-footprint').value = Math.round(totalArea/n*0.35);
+      }
+    }
+  } catch(e) {
+    if (e.message.includes('502')) toast('OSM Yüklenemedi','Overpass API şu an erişilemez','⚠️');
+    else toastErr(e.message);
+  } finally { nav.textContent='🏢'; }
 }
 
-// Format helpers
-function fmtTL(n) {
-  if (n==null) return '—';
-  if (Math.abs(n)>=1e9) return (n/1e9).toFixed(1)+' Mr₺';
-  if (Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+' M₺';
-  if (Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+' K₺';
+// ── INSPECTOR ─────────────────────────────────────────────────────────────────
+function openInspector(feature, lngLat) {
+  S.inspectedFeature = feature;
+  const p = feature.properties||{};
+  document.getElementById('insp-title').textContent =
+    p.parcel_id || p.neighborhood || p.building_id || 'Özellik';
+
+  const score = p.score ?? p.opportunity_score ?? p.risk_score ?? null;
+  const scoreRow = document.getElementById('insp-score-row');
+  if (score!==null) {
+    scoreRow.style.display='flex';
+    setScoreBadge(Math.round(score), 'insp-badge');
+  } else scoreRow.style.display='none';
+
+  // Build properties table — show all non-null, non-object props
+  const skip = new Set(['raw','data_source']);
+  const entries = Object.entries(p).filter(([k,v])=>!skip.has(k)&&v!==null&&typeof v!=='object');
+  const labelMap = {
+    parcel_id:'Parsel ID',parcel_area_m2:'Alan m²',floor_count:'Kat',
+    unit_count:'Daire',population:'Nüfus',district:'İlçe',neighborhood:'Mahalle',
+    risk_score:'Risk Skoru',building_id:'Bina ID',opportunity_score:'Fırsat Skoru',
+    height:'Yükseklik m',transformation_potential:'Dönüşüm %',
+    estimated_price_per_m2_tl:'Fiyat TL/m²',affordable:'Bütçeye Uygun',
+    building_age_estimate:'Tahmini Yaş',score:'Skor',k_index:'K Endeksi',
+    facade_direction:'Cephe',energy_class:'Enerji Sınıfı',has_elevator:'Asansör',
+    seismic_hazard_level:'Deprem Riski'
+  };
+  document.getElementById('insp-props').innerHTML = entries.map(([k,v]) =>
+    `<div class="kv-row"><span class="k">${labelMap[k]||k}</span>
+     <span class="v">${typeof v==='boolean'?(v?'Evet':'Hayır'):v}</span></div>`
+  ).join('');
+
+  const tags = [];
+  if (p.affordable===true) tags.push('<span class="tag green">✓ Bütçeye Uygun</span>');
+  if (p.affordable===false) tags.push('<span class="tag red">✗ Bütçe Üstü</span>');
+  if (p.risk_score>70) tags.push('<span class="tag red">Yüksek Risk</span>');
+  if (p.transformation_potential>70) tags.push('<span class="tag green">Yüksek Dönüşüm Potansiyeli</span>');
+  document.getElementById('insp-tags').innerHTML=tags.join('');
+
+  document.getElementById('panel-right').classList.add('open');
+}
+
+function closeInspector() {
+  document.getElementById('panel-right').classList.remove('open');
+  S.inspectedFeature=null;
+}
+
+function analyzeInspected() {
+  if (!S.inspectedFeature) return;
+  const p = S.inspectedFeature.properties||{};
+  if (p.parcel_area_m2) document.getElementById('p-parcel').value=Math.round(p.parcel_area_m2);
+  if (p.floor_count) {
+    document.getElementById('p-floors').value=p.floor_count;
+    document.getElementById('floor-slider').value=p.floor_count+4;
+    document.getElementById('floor-disp').textContent=p.floor_count+4;
+  }
+  if (p.unit_count) document.getElementById('p-units').value=p.unit_count;
+  if (p.population) document.getElementById('p-pop').value=p.population;
+  setMode('proje');
+  closeInspector();
+  toast('Form Dolduruldu','PROJE modunda parametreler güncellendi','✅');
+}
+
+// ── GAUGE ─────────────────────────────────────────────────────────────────────
+function updateGauge(scorePct, valM) {
+  const arc=document.getElementById('gauge-arc');
+  const fill=Math.max(0,Math.min(1,scorePct/100))*226.2;
+  arc.setAttribute('stroke-dasharray',`${fill.toFixed(1)} ${(301.6-fill).toFixed(1)}`);
+  const col=scorePct>=86?'#f59e0b':scorePct>=66?'#10b981':scorePct>=41?'#38bdf8':'#ef4444';
+  arc.setAttribute('stroke',col);
+  const el=document.getElementById('gauge-val');
+  const prev=parseFloat(el.dataset.raw||0);
+  el.dataset.raw=valM;
+  animCount(prev, valM, 700, v=>{
+    el.textContent=(v>=0?'+':'')+fmtM(v)+'M';
+    el.style.color=v>=0?'var(--c-green)':'var(--c-red)';
+  });
+}
+function fmtM(v){return Math.abs(v)>=1?v.toFixed(1):v.toFixed(2)}
+
+function setScoreBadge(score, elId) {
+  const el=document.getElementById(elId);
+  if (!el) return;
+  el.textContent = score===null?'—':`${score}`;
+  el.className='score-badge';
+  if (score===null) return;
+  if (score>=86) { el.classList.add('s-gold'); el.textContent='🏆 '+score; }
+  else if (score>=66) el.classList.add('s-green');
+  else if (score>=41) el.classList.add('s-yellow');
+  else el.classList.add('s-red');
+}
+
+function animCount(from, to, dur, fn) {
+  const t0=performance.now();
+  (function step(now){
+    const t=Math.min((now-t0)/dur,1);
+    fn(from+(to-from)*(1-Math.pow(1-t,3)));
+    if(t<1)requestAnimationFrame(step);
+  })(t0);
+}
+
+// ── LAYER MANAGEMENT ──────────────────────────────────────────────────────────
+const LAYER_MAP = {
+  'heatmap':'scan-heatmap', 'scan-circles':'scan-circles',
+  'osm-bld':'osm-bld-fill', 'opp-bld':'opp-bld-fill', 'sel-bld':'sel-bld-fill'
+};
+function toggleLayer(key) {
+  S.layers[key] = !S.layers[key];
+  const vis = S.layers[key]?'visible':'none';
+  const layerId = LAYER_MAP[key];
+  if (layerId && map.getLayer(layerId)) map.setLayoutProperty(layerId,'visibility',vis);
+  const tog = document.getElementById('lt-'+key);
+  if (tog) tog.classList.toggle('on', S.layers[key]);
+}
+function togglePanel(name) {
+  const p=document.getElementById(name+'-panel');
+  p.classList.toggle('open');
+  document.getElementById('btn-'+name)?.classList.toggle('active',p.classList.contains('open'));
+}
+
+// ── MAP STYLE SWITCHER ────────────────────────────────────────────────────────
+function setMapStyle(name, btn) {
+  document.querySelectorAll('.style-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  S.currentStyle=name;
+  const style=MAP_STYLES[name]||MAP_STYLES.dark;
+  map.setStyle(style);
+  map.once('styledata',()=>{
+    initSources(); initLayers();
+    // Restore data
+    loadRadar();
+  });
+}
+
+// ── GEOCODER ──────────────────────────────────────────────────────────────────
+function toggleGeocode() {
+  S.geocodeOpen=!S.geocodeOpen;
+  document.getElementById('geocode-wrap').classList.toggle('open',S.geocodeOpen);
+  document.getElementById('btn-geocode').classList.toggle('active',S.geocodeOpen);
+  if (S.geocodeOpen) setTimeout(()=>document.getElementById('geocode-input').focus(),150);
+}
+document.getElementById('geocode-input').addEventListener('keydown',async e=>{
+  if (e.key!=='Enter') return;
+  const q=e.target.value.trim();
+  if (!q) return;
+  try {
+    const url=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q+' Istanbul Turkey')}&format=json&limit=1`;
+    const r=await fetch(url); const data=await r.json();
+    if (data.length) {
+      const {lon,lat}=data[0];
+      map.flyTo({center:[+lon,+lat],zoom:15,duration:1000});
+      toast(data[0].display_name.split(',')[0],'Haritada gösteriliyor','📍');
+      toggleGeocode();
+    } else toast('Bulunamadı','Farklı bir arama deneyin','🔎');
+  } catch { toastErr('Arama hatası'); }
+});
+
+// ── EXPORT ────────────────────────────────────────────────────────────────────
+function exportGeoJSON() {
+  const bounds = map.getBounds();
+  const feats = [];
+  ['scan-heat','opp-bld','osm-bld','sel-bld'].forEach(srcId => {
+    const src = map.getSource(srcId);
+    if (!src) return;
+    try { const d=src._data; if(d?.features) feats.push(...d.features); } catch {}
+  });
+  const fc = {type:'FeatureCollection',features:feats,
+    metadata:{exported_at:new Date().toISOString(),bounds:bounds.toArray()}};
+  const blob=new Blob([JSON.stringify(fc,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`kentselsim_${new Date().toISOString().slice(0,10)}.geojson`;
+  a.click();
+  toast('GeoJSON İndirildi',`${feats.length} özellik`,'⬇️');
+}
+
+// ── URL STATE ─────────────────────────────────────────────────────────────────
+function saveUrlState() {
+  const c=map.getCenter(),z=map.getZoom().toFixed(1);
+  const hash=`#${S.mode}/${c.lng.toFixed(4)}/${c.lat.toFixed(4)}/${z}`;
+  history.replaceState(null,'',hash);
+}
+function restoreUrlState() {
+  const h=location.hash.slice(1).split('/');
+  if (h.length>=4) {
+    const [mode,lng,lat,z]=h;
+    if (['radar','kesif','proje','uzman'].includes(mode)) setMode(mode);
+    map.jumpTo({center:[+lng,+lat],zoom:+z});
+  }
+}
+
+// ── KEYBOARD SHORTCUTS ────────────────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if (e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+  const k=e.key.toLowerCase();
+  if (k==='escape') { cancelDraw(); closeInspector(); togglePanel('layers'); }
+  if (k==='d') toggleDraw();
+  if (k==='o') loadOsmAtCenter();
+  if (k==='l') togglePanel('layers');
+  if (k==='s') togglePanel('style');
+  if (k==='g') toggleGeocode();
+  if (k==='1') setMode('radar');
+  if (k==='2') setMode('kesif');
+  if (k==='3') setMode('proje');
+  if (k==='4') setMode('uzman');
+});
+
+// ── FORMAT HELPERS ────────────────────────────────────────────────────────────
+function fmtTL(n){
+  if(n==null||n===undefined)return'—';
+  const a=Math.abs(n);
+  if(a>=1e9)return(n/1e9).toFixed(1)+' Milyar ₺';
+  if(a>=1e6)return(n/1e6).toFixed(2)+' M₺';
+  if(a>=1e3)return(n/1e3).toFixed(0)+' K₺';
   return n.toFixed(0)+' ₺';
 }
-function fmtShort(n) {
-  if (Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+'M';
-  if (Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+'K';
+function fmtShort(n){
+  const a=Math.abs(n);
+  if(a>=1e6)return(n/1e6).toFixed(1)+'M';
+  if(a>=1e3)return(n/1e3).toFixed(0)+'K';
   return n.toFixed(0);
 }
 
-document.getElementById('btn-yarisibizden').addEventListener('click',()=>{
-  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active',b.dataset.mode==='uzman'));
-  setMode('uzman'); setTimeout(()=>switchTab('yarisi'),50);
-});
+// ── INIT ──────────────────────────────────────────────────────────────────────
+document.getElementById('btn-yarisibizden-old')?.remove();
+
+// Show keyboard shortcut hint on first visit
+if (!localStorage.getItem('ks_visited')) {
+  localStorage.setItem('ks_visited','1');
+  setTimeout(()=>toast('KentselSim 3D GIS','Kısayollar: D=Çiz, O=OSM, L=Katmanlar, G=Ara, 1-4=Mod','⬡'),1000);
+}
 </script>
 </body>
 </html>

@@ -54,8 +54,11 @@ class InvestorProfile(BaseModel):
 class NeighborhoodOpportunity(BaseModel):
     neighborhood: str
     district: str
-    estimated_price_per_m2_tl: float
+    lon: float
+    lat: float
+    price_per_m2: float
     affordable_unit_m2: float
+    affordable: bool
     transformation_potential: int
     unsaturated_supply_score: int
     liquidity_score: int
@@ -115,8 +118,11 @@ def recommend_neighborhoods(profile: InvestorProfile) -> RecommendationResponse:
             NeighborhoodOpportunity(
                 neighborhood=seed.name,
                 district=seed.district,
-                estimated_price_per_m2_tl=seed.base_price_per_m2,
+                lon=seed.center[0],
+                lat=seed.center[1],
+                price_per_m2=seed.base_price_per_m2,
                 affordable_unit_m2=round(affordable_m2, 1),
+                affordable=affordable_m2 >= profile.min_unit_m2,
                 transformation_potential=seed.transformation_potential,
                 unsaturated_supply_score=seed.unsaturated_supply,
                 liquidity_score=seed.liquidity,

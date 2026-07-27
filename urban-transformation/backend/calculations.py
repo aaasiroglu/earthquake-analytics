@@ -42,6 +42,8 @@ class Law6306Info(BaseModel):
     owner_count: int
     required_new_threshold: int
     required_old_threshold: int
+    nisap_met: bool = False  # gerçek onay sayısı bilinmeden hesaplanamaz; simülasyon için False
+    consent_ratio: float | None = None
     new_threshold_label: str
     old_threshold_label: str
     contractor_termination_note: str
@@ -78,8 +80,8 @@ class SerefiyeInput(BaseModel):
 class SerefiyeFloor(BaseModel):
     floor_num: int
     serefiye_factor: float
-    estimated_price_per_m2: float
-    estimated_unit_value_tl: float
+    price_per_m2: float
+    unit_value_tl: float
     tier: str  # "zemin" | "orta" | "üst" | "en üst"
 
 
@@ -417,8 +419,8 @@ def calculate_serefiye(inp: SerefiyeInput) -> SerefiyeResult:
             SerefiyeFloor(
                 floor_num=floor_num,
                 serefiye_factor=round(factor, 4),
-                estimated_price_per_m2=round(price_per_m2, 2),
-                estimated_unit_value_tl=round(unit_value, 2),
+                price_per_m2=round(price_per_m2, 2),
+                unit_value_tl=round(unit_value, 2),
                 tier=tier,
             )
         )
