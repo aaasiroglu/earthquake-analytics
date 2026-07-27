@@ -1,0 +1,25 @@
+# 3DCityDB (v4 şema) + PostGIS pilot ortamı.
+#
+# Bu ajan sandbox'ında Docker daemon çalışmadığı ve internet erişimi
+# olmadığı için bu compose dosyası burada başlatılıp test edilemedi.
+# Kendi ortamınızda çalıştırıp doğrulamanız gerekir.
+#
+# İmaj/etiket (tag) Docker Hub'da güncellenmiş olabilir; çalıştırmadan
+# önce https://hub.docker.com/r/3dcitydb/3dcitydb-postgis adresinden
+# güncel tag'i kontrol edin.
+version: "3.8"
+services:
+  citydb:
+    image: 3dcitydb/3dcitydb-postgis:latest
+    container_name: urban-transformation-citydb
+    environment:
+      - SRID=4326
+      - SRS_NAME=urn:ogc:def:crs:EPSG::4326
+      - POSTGRES_PASSWORD=${CITYDB_PASSWORD:-citydb}
+    ports:
+      - "5432:5432"
+    volumes:
+      - citydb-data:/var/lib/postgresql/data
+
+volumes:
+  citydb-data:

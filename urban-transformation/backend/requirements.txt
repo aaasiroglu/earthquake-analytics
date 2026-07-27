@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+python-multipart
+geopandas
+fiona
+shapely
+pyproj
+sqlalchemy
+psycopg2-binary
